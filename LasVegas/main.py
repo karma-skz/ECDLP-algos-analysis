@@ -1,6 +1,8 @@
 import random
 import sys
 from typing import List, Tuple, Optional
+from pathlib import Path
+import time
 
 # Set higher recursion depth for deep computations if needed
 sys.setrecursionlimit(2000)
@@ -75,6 +77,11 @@ class EllipticCurve:
         # Validate curve
         if (4 * a**3 + 27 * b**2) % p == 0:
             raise ValueError("Curve is singular")
+    def is_on_curve(self, P: 'Point') -> bool:
+        if P.is_identity():
+            return True
+        x, y = P.x % self.p, P.y % self.p # type: ignore
+        return (y * y - (x * x * x + self.a * x + self.b)) % self.p == 0
 
     def identity(self) -> Point:
         """Returns the identity point O"""
@@ -84,7 +91,7 @@ class EllipticCurve:
         """Returns -P"""
         if p1.is_identity():
             return self.identity()
-        return Point(p1.x, -p1.y % self.p)
+        return Point(p1.x, -p1.y % self.p) # type: ignore
 
     def add(self, p1: Point, p2: Point) -> Point:
         """Adds two points P1 + P2 on the curve"""
@@ -108,8 +115,8 @@ class EllipticCurve:
         # Calculate slope 's'
         try:
             # s = (y2 - y1) * mod_inv(x2 - x1, p)
-            s_num = (y2 - y1) % self.p
-            s_den = mod_inv((x2 - x1) % self.p, self.p)
+            s_num = (y2 - y1) % self.p # type: ignore
+            s_den = mod_inv((x2 - x1) % self.p, self.p) # type: ignore
             s = (s_num * s_den) % self.p
         except ValueError:
             # This case (x1=x2, y1!=y2) is already handled,
@@ -117,8 +124,8 @@ class EllipticCurve:
             return self.identity()
 
         # Calculate new point
-        x3 = (s**2 - x1 - x2) % self.p
-        y3 = (s * (x1 - x3) - y1) % self.p
+        x3 = (s**2 - x1 - x2) % self.p # type: ignore
+        y3 = (s * (x1 - x3) - y1) % self.p # type: ignore
 
         return Point(x3, y3)
 
@@ -131,13 +138,13 @@ class EllipticCurve:
         
         # Calculate slope 's'
         # s = (3*x^2 + a) * mod_inv(2*y, p)
-        s_num = (3 * x**2 + self.a) % self.p
-        s_den = mod_inv((2 * y) % self.p, self.p)
+        s_num = (3 * x**2 + self.a) % self.p # type: ignore
+        s_den = mod_inv((2 * y) % self.p, self.p) # type: ignore
         s = (s_num * s_den) % self.p
 
         # Calculate new point
-        x3 = (s**2 - 2 * x) % self.p
-        y3 = (s * (x - x3) - y) % self.p
+        x3 = (s**2 - 2 * x) % self.p # type: ignore
+        y3 = (s * (x - x3) - y) % self.p # type: ignore
         
         return Point(x3, y3)
 
@@ -382,24 +389,24 @@ class LasVegasECDLP:
             # Monomials: x^2, y^2, z^2, xy, xz, yz
             # With z=1: x^2, y^2, 1, xy, x, y
             return [
-                (x*x) % self.p,
-                (y*y) % self.p,
+                (x*x) % self.p, # type: ignore
+                (y*y) % self.p, # type: ignore
                 1,
-                (x*y) % self.p,
+                (x*y) % self.p, # type: ignore
                 x,
                 y
             ]
         elif n_prime == 3:
             # Monomials: x^3, y^3, z^3, x^2y, x^2z, y^2x, y^2z, z^2x, z^2y, xyz
             # With z=1: x^3, y^3, 1, x^2y, x^2, y^2x, y^2, x, y, xy
-            x2, y2 = (x*x) % self.p, (y*y) % self.p
-            x3, y3 = (x*x2) % self.p, (y*y2) % self.p
+            x2, y2 = (x*x) % self.p, (y*y) % self.p # type: ignore
+            x3, y3 = (x*x2) % self.p, (y*y2) % self.p # type: ignore
             return [
-                x3, y3, 1,
-                (x2*y) % self.p, x2,
-                (y2*x) % self.p, y2,
-                x, y,
-                (x*y) % self.p
+                x3, y3, 1, # type: ignore
+                (x2*y) % self.p, x2, # type: ignore
+                (y2*x) % self.p, y2, # type: ignore
+                x, y, 
+                (x*y) % self.p # type: ignore
             ]
         else:
             # This can be generalized, but hard-coded for now
@@ -474,35 +481,25 @@ class LasVegasECDLP:
         """
         
         l = 3 * n_prime
-        print(f"--- Starting ECDLP Solver ---")
-        print(f"Field: F_{self.p}, Group Order: {self.n}")
-        print(f"Params: n' = {n_prime}, l = {l}")
+        # Keep noisy prints minimal; high-level metadata printed by main
         
         for attempt in range(1, max_tries + 1):
-            print(f"\n[Attempt {attempt}/{max_tries}]")
-            
             # 1. [cite_start]Build Matrix M and get random multipliers [cite: 133-151]
-            print("  Building matrix M...")
             M, I_list, J_list = self._build_matrix_M(n_prime, l)
             
             # 2. [cite_start]Compute Left-Kernel K of M [cite: 152]
-            print("  Computing left-kernel K...")
             K_basis = LinearAlgebraFp.find_left_kernel_basis(M, self.p)
             
             if not K_basis:
-                print("  Kernel is empty. Retrying...")
                 continue
                 
             # 3. [cite_start]Solve Problem L (Heuristic) [cite: 153]
-            print("  Solving Problem L (Algorithm 2)...")
             v = LinearAlgebraFp.solve_problem_l_heuristic(K_basis, l, self.p)
             
             if v is None:
-                print("  Problem L not solved by heuristic. Retrying...")
                 continue
 
             # 4. Solution Found! [cite_start]Calculate A and B [cite: 154-163]
-            print("  SUCCESS: Problem L solved. Found vector v.")
             A = 0
             B = 0
             
@@ -517,8 +514,6 @@ class LasVegasECDLP:
                 if v[v_index] != 0:
                     B = (B + J_list[i]) % self.n
             
-            print(f"  A = {A}, B = {B}")
-
             # 5. [cite_start]Final Calculation: d = A * B^-1 (mod n) [cite: 164]
             # Note: We use mod 'n' (group order) as per ECDLP
             # [cite_start]The paper uses 'p' [cite: 164] [cite_start]because it *defined* p as the group order [cite: 32]
@@ -526,21 +521,14 @@ class LasVegasECDLP:
                 B_inv = mod_inv(B, self.n)
                 d = (A * B_inv) % self.n
                 
-                print(f"  B_inv (mod {self.n}) = {B_inv}")
-                print(f"  d = (A * B_inv) % n = {d}")
-                
                 # Verification
                 Q_check = self.curve.multiply(self.G, d)
                 if Q_check == self.Q:
-                    print(f"\n*** VERIFIED! {d} * G = Q ***")
                     return d, attempt # <-- CHANGED: Return d and attempt count
-                else:
-                    print(f"  VERIFICATION FAILED. {d}*G != Q. Retrying...")
             
             except ValueError:
-                print(f"  B = {B} is not invertible (mod {self.n}). Retrying...")
+                pass
                 
-        print("\n--- Solver finished. No solution found in max_tries. ---")
         return None, max_tries # <-- CHANGED: Return None and max attempts
 
 # ==============================================================================
@@ -550,80 +538,64 @@ class LasVegasECDLP:
 # ==============================================================================
 
 
-# [p, a, b, Gx, Gy, n, d_secret]
-# [p, a, b, Gx, Gy, n, d_secret]
-
-test_cases = [
-    # Test Case 1: Original Sanity Check (p=17)
-    [17, 2, 2, 5, 1, 19, 13],
-
-    # Test Case 2: Small Secret (p=17)
-    [17, 2, 2, 5, 1, 19, 5],
-
-    # Test Case 3: Large Secret (p=17)
-    [17, 2, 2, 5, 1, 19, 18],
-
-    # Test Case 4: Medium Prime (p=113)
-    [113, 1, 6, 2, 4, 127, 42],
-
-    # Test Case 5: Medium Prime (p=97)
-    [97, 1, 0, 17, 75, 104, 27],
-]
-
-def display_result(testcase, n_prime=2, max_tries=100):
-    p, a, b, Gx, Gy, n, d_secret = testcase
-    my_curve = EllipticCurve(a, b, p)
-    G = Point(Gx, Gy)
-    Q = my_curve.multiply(G, d_secret)
-    print(f"Curve: y^2 = x^3 + {a}x + {b} (mod {p})")
-    print(f"Base G: {G}")
-    print(f"Order n: {n}")
-    print(f"Public Q: {Q}") 
-
-    print(f"(Secret d is {d_secret} for verification)\n")
-
-    solver = LasVegasECDLP(curve=my_curve, G=G, Q=Q, n=n)
-    
-    # --- CHANGED: Capture both return values ---
-    found_d, attempts = solver.solve(n_prime=n_prime, max_tries=max_tries)
-    
-    if found_d is not None:
-        print(f"\nFinal Result: d = {found_d}")
-    else:
-        print("\nFinal Result: d not found.")
-        
-    # --- CHANGED: Return all info for the summary table ---
-    return (p, n, d_secret, found_d, attempts, max_tries)
-
+def load_positional_input(file_path: Path):
+    with file_path.open('r') as f:
+        lines = [ln.strip() for ln in f if ln.strip()]
+    if len(lines) < 5:
+        raise ValueError("Input file must contain 5 non-empty lines: p | a b | Gx Gy | n | Qx Qy")
+    def ints(s: str):
+        return list(map(int, s.split()))
+    p = ints(lines[0])[0]
+    a, b = ints(lines[1])
+    Gx, Gy = ints(lines[2])
+    n = ints(lines[3])[0]
+    Qx, Qy = ints(lines[4])
+    return p, a, b, (Gx, Gy), n, (Qx, Qy)
 
 if __name__ == "__main__":
+    script_dir = Path(__file__).parent
+    default_path = script_dir / 'input' / 'filename.txt'
+    input_path = Path(sys.argv[1]) if len(sys.argv) > 1 else default_path
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
 
-    # List to store results: (p, n, d_secret, found_d, attempts, max_tries)
-    results_data = []
-    
-    # --- Parameters for all tests ---
+    p, a, b, G_tuple, n, Q_tuple = load_positional_input(input_path)
+
+    # Build curve and points
+    curve = EllipticCurve(a, b, p)
+    G = Point(G_tuple[0], G_tuple[1])
+    Q = Point(Q_tuple[0], Q_tuple[1])
+
+    # Sanity checks
+    if not curve.is_on_curve(G):
+        raise ValueError("G is not on the curve")
+    if not curve.is_on_curve(Q):
+        raise ValueError("Q is not on the curve")
+    nG = curve.multiply(G, n)
+    if not nG.is_identity():
+        print("Warning: n*G != O; provided n may not be exact order")
+
+    method = "LasVegas"
     N_PRIME = 2
     MAX_TRIES = 100
 
-    for i in range (len(test_cases)):
-        print(f"\n=== Test Case {i+1} ===")
-        result = display_result(test_cases[i], n_prime=N_PRIME, max_tries=MAX_TRIES)
-        results_data.append(result)
-        print("\n=========================\n")
-        
-    
-    # --- Print Summary Table ---
-    print("\n\n--- FINAL TEST SUMMARY ---")
-    print(f"{'Test Case':<12} | {'Params (p, n)':<18} | {'Secret d':<10} | {'Found d':<10} | {'Status':<7} | {'Attempts':<10}")
-    print("-" * 84)
+    start = time.perf_counter()
+    solver = LasVegasECDLP(curve=curve, G=G, Q=Q, n=n)
+    found_d, attempts = solver.solve(n_prime=N_PRIME, max_tries=MAX_TRIES)
+    elapsed = time.perf_counter() - start
 
-    for i, res in enumerate(results_data):
-        p, n, d_secret, found_d, attempts, max_tries = res
-        
-        test_id = f"Test {i+1}"
-        params = f"p={p}, n={n}"
-        status = "PASS" if d_secret == found_d else "FAIL"
-        found_d_str = str(found_d) if found_d is not None else "None"
-        attempts_str = f"{attempts}/{max_tries}"
-        
-        print(f"{test_id:<12} | {params:<18} | {d_secret:<10} | {found_d_str:<10} | {status:<7} | {attempts_str:<10}")
+    # Output metadata
+    print(f"Curve: p={p}, a={a}, b={b}")
+    print(f"G=({G.x},{G.y}), Q=({Q.x},{Q.y}), n={n}")
+    print(f"Method: {method}")
+    print(f"Params: n'={N_PRIME}, l={3*N_PRIME}")
+    print(f"Time elapsed: {elapsed:.6f} s")
+
+    if found_d is not None:
+        print(f"Found d: {found_d}")
+        check = curve.multiply(G, found_d % n)
+        match = (check == Q)
+        print(f"Verified: {match}")
+        print(f"Match: {match}")
+    else:
+        print("No solution found (None)")

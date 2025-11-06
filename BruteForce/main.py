@@ -2,6 +2,9 @@
 # Point representation: (x, y) tuples; point at infinity = None
 
 from typing import Optional, Tuple
+from pathlib import Path
+import sys
+import time
 
 Point = Optional[Tuple[int, int]]  # None for point at infinity
 
@@ -75,45 +78,86 @@ def brute_force_ecdlp(p: int, a: int, b: int, G: Point, Q: Point, n: int) -> Opt
     while k < n:
         if R == Q:
             return k
-        # R <- R + G
         R = ec_point_add(R, G, a, p)
         k += 1
 
-    # final check (k == n)
     if R == Q:
         return k
     return None
 
-# Example usage (small toy curve)
+def ec_scalar_mul(k: int, P: Point, a: int, p: int) -> Point:
+    if P is None:
+        return None
+    R: Point = None
+    Q: Point = P
+    while k > 0:
+        if k & 1:
+            R = ec_point_add(R, Q, a, p)
+        Q = ec_point_add(Q, Q, a, p)
+        k >>= 1
+    return R
+
+def is_curve_valid(p: int, a: int, b: int) -> bool:
+    return ((4 * (a % p) ** 3) + (27 * (b % p) ** 2)) % p != 0
+
+def is_point_on_curve(P: Point, p: int, a: int, b: int) -> bool:
+    if P is None:
+        return True
+    x, y = P
+    if not (0 <= x < p and 0 <= y < p):
+        return False
+    return (y * y - (x * x * x + a * x + b)) % p == 0
+
+def load_positional_input(file_path: Path):
+    with file_path.open('r') as f:
+        lines = [ln.strip() for ln in f if ln.strip()]
+    if len(lines) < 5:
+        raise ValueError("Input file must contain 5 non-empty lines: p | a b | Gx Gy | n | Qx Qy")
+    def ints(s: str):
+        return list(map(int, s.split()))
+    p = ints(lines[0])[0]
+    a, b = ints(lines[1])
+    Gx, Gy = ints(lines[2])
+    n = ints(lines[3])[0]
+    Qx, Qy = ints(lines[4])
+    return p, a, b, (Gx, Gy), n, (Qx, Qy)
+
 if __name__ == "__main__":
-    # Toy example: choose small prime p, curve y^2 = x^3 + ax + b (mod p),
-    # base point G of small order n, and compute Q = d*G for testing.
-    p = 9739
-    a = 497
-    b = 1768
-    G = (1804, 5368)
-    n =  (  # in real use you'd compute or be given n; here we assume a small known order for illustration
-        0  # placeholder; if you know n put it here, otherwise brute_force_ecdlp will iterate up to n-1
-    )
+    script_dir = Path(__file__).parent
+    default_path = script_dir / 'input' / 'filename.txt'
+    input_path = Path(sys.argv[1]) if len(sys.argv) > 1 else default_path
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
 
-    # If you want a quick self-test, construct Q by repeated addition and set n:
-    # (Below is an example that computes Q and uses the brute-force to recover d.)
-    # WARNING: In real cryptographic curves n is huge; this toy example is only for demonstration.
+    p, a, b, G, n, Q = load_positional_input(input_path)
 
-    # build a small subgroup by computing small multiples of G
-    # let's compute first 50 multiples to form a toy subgroup
-    d_true = 13  # secret scalar we will look for
-    R = None
-    for _ in range(d_true):
-        R = ec_point_add(R, G, a, p) if R is not None else G
-    Q = R
-    # set n to an upper bound (e.g., 100)
-    n = find_order(p, a, b, G, max_iter=100)
-    
-    if n is None:
-        n = 100  # fallback if order not found
-    
+    if not is_curve_valid(p, a, b):
+        raise ValueError("Invalid curve: 4a^3 + 27b^2 ≡ 0 (mod p)")
+    if G is None or Q is None:
+        raise ValueError("G/Q cannot be point at infinity")
+    if not is_point_on_curve(G, p, a, b):
+        raise ValueError("G is not on the curve")
+    if not is_point_on_curve(Q, p, a, b):
+        raise ValueError("Q is not on the curve")
+    nG = ec_scalar_mul(n, G, a, p)
+    if nG is not None:
+        print("Warning: n*G != O; provided n may not be the exact order")
 
-    found = brute_force_ecdlp(p, a, b, G, Q, n)
-    print("True d:", d_true)
-    print("Found d:", found)
+    method = "Brute-force"
+    start = time.perf_counter()
+    d_found = brute_force_ecdlp(p, a, b, G, Q, n)
+    elapsed = time.perf_counter() - start
+
+    print(f"Curve: p={p}, a={a}, b={b}")
+    print(f"G=({G[0]},{G[1]}), Q=({Q[0]},{Q[1]}), n={n}")
+    print(f"Method: {method}")
+    print(f"Time elapsed: {elapsed:.6f} s")
+
+    if d_found is not None:
+        print(f"Found d: {d_found}")
+        Q_check = ec_scalar_mul(d_found % n, G, a, p)
+        match = (Q_check == Q)
+        print(f"Verified: {match}")
+        print(f"Match: {match}")
+    else:
+        print("No solution found (None)")

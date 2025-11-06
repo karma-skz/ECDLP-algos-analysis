@@ -165,3 +165,74 @@ Domain shrinks from 5 → 3 ⇒ cost ~√3 ≈ 2 steps (vs √5 ≈ 3)
 ➡ Partial information shrinks the effective ECDLP domain,
 making BSGS faster by roughly √(reduction factor).
 
+---
+
+## 🔧 File-Based Runner Usage
+
+The script `main.py` now reads its parameters from `input/filename.txt` (relative to this folder). Create or edit that file instead of modifying the code.
+
+### Supported Keys (key=value per line)
+
+Required:
+```
+p, a, b, Gx, Gy
+```
+
+Provide either:
+```
+Qx, Qy   (explicit target point)
+```
+or
+```
+d        (secret scalar to derive Q for a self-test)
+```
+
+Optional:
+```
+n            # order of G (if absent we brute-force search up to max_iter)
+max_iter     # cap while searching for n (default 200000)
+```
+
+You may also specify tuples using `G=(x,y)` or `Q=(x,y)` instead of separate coordinates.
+Hex values with `0x` prefix are accepted.
+Comments start with `#` and blank lines are ignored.
+
+### Example `input/filename.txt`
+```
+p = 9739
+a = 497
+b = 1768
+Gx = 1804
+Gy = 5368
+d = 1234
+max_iter = 20000
+```
+
+### Running
+```bash
+python3 main.py
+```
+
+### Output
+```
+Order n: <computed or provided>
+True d:  <if d given>
+Found d: <discrete log solution>
+Match:   <True/False if d provided>
+```
+
+If order search fails, supply `n` directly or raise `max_iter`.
+
+---
+
+## 🔐 Notes & Safety
+This toy example uses very small parameters. Real-world curves must use large prime fields and secure group orders; BSGS is only practical for small or partially-leaked secrets.
+
+---
+
+## ✅ Next Ideas
+* Add timing benchmarks.
+* Implement memory-lean variant (Pollard's Rho for ECDLP).
+* Support compressed point input.
+* Add validation that (G) and (Q) lie on the curve.
+
