@@ -6,3 +6,4 @@
 !PROJECT_README.md
 requirements.txt
 __pycache__/
+*.pdf
