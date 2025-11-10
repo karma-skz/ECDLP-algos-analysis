@@ -5,4 +5,4 @@
 !README.md
 !PROJECT_README.md
 requirements.txt
-utils/__pycache__/
+__pycache__/

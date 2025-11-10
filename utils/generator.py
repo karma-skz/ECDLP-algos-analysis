@@ -175,36 +175,60 @@ def has_full_order(curve: EllipticCurve, G: Point, n: int) -> bool:
     return True
 
 
-def generate_test_case(output_dir: Path, case_num: int, secret: int = 696969):
+def generate_test_case(output_dir: Path, case_num: int, secret: Optional[int] = None, bits: int = 40):
     """
-    Generate a single ECDLP test case.
+    Generate a single ECDLP test case with diverse parameters.
     
     Args:
         output_dir: Directory to save test case files
         case_num: Test case number
-        secret: Secret discrete log value
+        secret: Secret discrete log value (if None, randomly chosen)
+        bits: Bit length of prime p
     """
     # Generate prime p ≡ 11 (mod 12) for fast Tonelli
-    p = generate_prime(bits=40, condition=11)
+    p = generate_prime(bits=bits, condition=11)
     
-    # Use simple curve y^2 = x^3 + 1
-    a = 0
-    b = 1
+    # Generate diverse curve parameters
+    # Avoid singular curves: 4a³ + 27b² ≠ 0 (mod p)
+    max_curve_attempts = 100
+    for _ in range(max_curve_attempts):
+        # Generate random a, b with different strategies per case
+        if case_num == 1:
+            a, b = 0, 1  # Simple curve
+        elif case_num == 2:
+            a, b = random.randrange(1, 10), random.randrange(1, 10)  # Small coefficients
+        elif case_num == 3:
+            a, b = random.randrange(p // 2, p), random.randrange(p // 2, p)  # Large coefficients
+        elif case_num == 4:
+            a = random.randrange(0, p)
+            b = random.randrange(0, p)  # Random coefficients
+        else:
+            a = random.randrange(0, p)
+            b = random.randrange(0, p)
+        
+        # Check non-singularity: 4a³ + 27b² ≠ 0 (mod p)
+        discriminant = (4 * pow(a, 3, p) + 27 * pow(b, 2, p)) % p
+        if discriminant == 0:
+            continue
+        
+        try:
+            curve = EllipticCurve(a, b, p)
+            break
+        except ValueError:
+            continue
+    else:
+        # Couldn't find valid curve, try again
+        return generate_test_case(output_dir, case_num, secret, bits)
     
-    try:
-        curve = EllipticCurve(a, b, p)
-    except ValueError:
-        # Curve is singular, try again
-        return generate_test_case(output_dir, case_num, secret)
-    
-    # For p ≡ 2 (mod 3), order is approximately p + 1
+    # Estimate order using Hasse's theorem: |n - (p+1)| <= 2√p
+    # For simplicity, use n ≈ p + 1 and find actual order
     n = p + 1
     
     # Find a point of full order
     max_attempts = 1000
     for _ in range(max_attempts):
         x = random.randrange(0, p)
-        rhs = (x * x * x + b) % p
+        rhs = (pow(x, 3, p) + a * x + b) % p
         y = tonelli_shanks(rhs, p)
         
         if y is None:
@@ -215,15 +239,35 @@ def generate_test_case(output_dir: Path, case_num: int, secret: int = 696969):
             break
     else:
         # Couldn't find full-order point, try new curve
-        return generate_test_case(output_dir, case_num, secret)
+        return generate_test_case(output_dir, case_num, secret, bits)
     
-    # Compute Q = d*G where d = secret mod n
-    d = secret % n
+    # Choose secret value strategically for different cases
+    if secret is None:
+        sqrt_n = int(n ** 0.5)
+        if case_num == 1:
+            # Small d < sqrt(n) / 2 - good for brute force
+            d = random.randrange(max(1, sqrt_n // 4), sqrt_n // 2)
+        elif case_num == 2:
+            # Medium d around sqrt(n) / 2 - still manageable for brute force
+            d = random.randrange(sqrt_n // 2, (3 * sqrt_n) // 4)
+        elif case_num == 3:
+            # d around sqrt(n) - competitive between brute force and BSGS
+            d = random.randrange((3 * sqrt_n) // 4, sqrt_n + sqrt_n // 10)
+        elif case_num == 4:
+            # d slightly above sqrt(n) - BSGS should win
+            d = random.randrange(sqrt_n + sqrt_n // 10, sqrt_n + sqrt_n // 4)
+        else:
+            # d well above sqrt(n) - BSGS clear winner
+            d = random.randrange(sqrt_n + sqrt_n // 4, sqrt_n + sqrt_n // 2)
+    else:
+        d = secret % n
+    
+    # Compute Q = d*G
     Q = curve.scalar_multiply(d, G)
     
     if Q is None:
         # Shouldn't happen, but regenerate if it does
-        return generate_test_case(output_dir, case_num, secret)
+        return generate_test_case(output_dir, case_num, secret, bits)
     
     # Write test case
     testcase_path = output_dir / f"testcase_{case_num}.txt"
@@ -239,29 +283,39 @@ def generate_test_case(output_dir: Path, case_num: int, secret: int = 696969):
     with answer_path.open('w') as f:
         f.write(f"{d}\n")
     
-    print(f"Generated test case {case_num}: p={p}, n={n}, d={d}")
+    sqrt_n = int(n ** 0.5)
+    d_pos = "small" if d < sqrt_n else "large"
+    print(f"Generated test case {case_num}: p={p}, n={n}, d={d} ({d_pos}, √n≈{sqrt_n})")
+    print(f"  Curve: y² = x³ + {a}x + {b} (mod {p})")
 
 
-def generate_test_suite(output_dir: Path, num_cases: int = 5, secret: int = 696969):
+def generate_test_suite(output_dir: Path, num_cases: int = 5, bits: int = 40):
     """
-    Generate a suite of ECDLP test cases.
+    Generate a suite of ECDLP test cases with diverse parameters.
     
     Args:
         output_dir: Directory to save test cases
         num_cases: Number of test cases to generate
-        secret: Secret discrete log value
+        bits: Bit length of primes
     """
+    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    print(f"Generating {num_cases} test cases...")
-    for i in range(1, num_cases + 1):
-        generate_test_case(output_dir, i, secret)
+    print(f"Generating {num_cases} diverse test cases...")
+    print(f"Prime bit length: {bits}")
+    print("="*60)
     
-    print(f"\nTest suite generated in {output_dir}")
+    for i in range(1, num_cases + 1):
+        generate_test_case(output_dir, i, secret=None, bits=bits)
+        print()
+    
+    print("="*60)
+    print(f"Test suite generated successfully in {output_dir}")
 
 
 if __name__ == "__main__":
-    # Generate test cases in the input directory
+    # Generate test suite in the input directory
     script_dir = Path(__file__).parent.parent
-    output_dir = script_dir / "input"
-    generate_test_suite(output_dir)
+    input_dir = script_dir / "input"
+    
+    generate_test_suite(input_dir, num_cases=5, bits=40)

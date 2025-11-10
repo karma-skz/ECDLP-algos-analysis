@@ -119,25 +119,13 @@ def pohlig_hellman_ecdlp(curve: EllipticCurve, G: Point, Q: Point, n: int) -> Op
         G1 = curve.scalar_multiply(h, G)
         Q1 = curve.scalar_multiply(h, Q)
         
-        # Recover d mod q^e digit by digit in base q
-        x_mod = 0
-        for k in range(e):
-            # Compute (Q1 - x_mod*G1) / q^k
-            t = q ** (e - 1 - k)
-            tmp = curve.add(Q1, curve.negate(curve.scalar_multiply(x_mod, G1)))
-            c_k = curve.scalar_multiply(t, tmp)
-            g_k = curve.scalar_multiply(t, G1)
-            
-            # Solve for digit d_k in range [0, q-1]
-            d_k = bsgs_small(curve, g_k, c_k, q)
-            
-            if d_k is None:
-                return None
-            
-            # Update x_mod with new digit
-            x_mod = (x_mod + d_k * (q ** k)) % n_i
+        # Use direct BSGS on the subgroup
+        d_i = bsgs_small(curve, G1, Q1, n_i)
         
-        congruences.append((x_mod, n_i))
+        if d_i is None:
+            return None
+        
+        congruences.append((d_i, n_i))
     
     # Combine using Chinese Remainder Theorem
     d, _ = crt_combine(congruences)

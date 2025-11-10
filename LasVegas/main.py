@@ -185,7 +185,7 @@ def find_sparse_vector(basis: List[List[int]], target_zeros: int, p: int) -> Opt
 
 
 def las_vegas_ecdlp(curve: EllipticCurve, G: Point, Q: Point, n: int, 
-                    n_prime: int = 2, max_attempts: int = 50) -> Tuple[Optional[int], int]:
+                    n_prime: int = 3, max_attempts: int = 200) -> Tuple[Optional[int], int]:
     """
     Solve ECDLP using Las Vegas algorithm.
     
@@ -298,8 +298,8 @@ def main():
     if nG is not None:
         print("Warning: n*G ≠ O; provided n may not be the exact order of G")
     
-    n_prime = 2
-    max_attempts = 100
+    n_prime = 3
+    max_attempts = 200
     
     print(f"Solving ECDLP using Las Vegas Algorithm...")
     print(f"Curve: y^2 = x^3 + {a}x + {b} (mod {p})")

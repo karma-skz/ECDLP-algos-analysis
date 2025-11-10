@@ -158,9 +158,16 @@ def pollard_rho_ecdlp(curve: EllipticCurve, G: Point, Q: Point, n: int,
             num = (A_t - A_h) % n
             den = (B_h - B_t) % n
             
+            # Skip useless collisions where both coefficients are equal
+            if num == 0 and den == 0:
+                # Restart with new random state
+                tortoise = random_state()
+                hare = step(tortoise)
+                continue
+            
             g = gcd(den, n)
             
-            if g == 1:
+            if g == 1 and den != 0:
                 # Simple case: den is coprime to n
                 try:
                     den_inv = mod_inv(den, n)
@@ -170,29 +177,29 @@ def pollard_rho_ecdlp(curve: EllipticCurve, G: Point, Q: Point, n: int,
                     if curve.scalar_multiply(d, G) == Q:
                         return d, steps
                 except ZeroDivisionError:
-                    return None, steps
-            else:
+                    pass
+            elif g > 1 and num % g == 0:
                 # Need to solve with gcd(den, n) > 1
-                if num % g != 0:
-                    return None, steps  # Inconsistent
-                
                 n_reduced = n // g
                 den_reduced = (den // g) % n_reduced
                 num_reduced = (num // g) % n_reduced
                 
-                try:
-                    den_inv = mod_inv(den_reduced, n_reduced)
-                    d_base = (num_reduced * den_inv) % n_reduced
-                    
-                    # Try all lifts: d = d_base + k*(n/g) for k = 0, ..., g-1
-                    for k in range(g):
-                        d_candidate = (d_base + k * n_reduced) % n
-                        if curve.scalar_multiply(d_candidate, G) == Q:
-                            return d_candidate, steps
-                except ZeroDivisionError:
-                    pass
+                if den_reduced != 0:
+                    try:
+                        den_inv = mod_inv(den_reduced, n_reduced)
+                        d_base = (num_reduced * den_inv) % n_reduced
+                        
+                        # Try all lifts: d = d_base + k*(n/g) for k = 0, ..., g-1
+                        for k in range(g):
+                            d_candidate = (d_base + k * n_reduced) % n
+                            if curve.scalar_multiply(d_candidate, G) == Q:
+                                return d_candidate, steps
+                    except ZeroDivisionError:
+                        pass
             
-            return None, steps
+            # Failed collision - restart with new random state
+            tortoise = random_state()
+            hare = step(tortoise)
     
     return None, steps
 
@@ -232,8 +239,8 @@ def main():
     
     # Configuration
     partition_m = 32
-    max_steps = 5_000_000
-    max_attempts = 20
+    max_steps = 10_000_000  # Increased for better success rate
+    max_attempts = 10
     
     print(f"Solving ECDLP using Pollard Rho...")
     print(f"Curve: y^2 = x^3 + {a}x + {b} (mod {p})")
