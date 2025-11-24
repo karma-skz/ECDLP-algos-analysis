@@ -633,11 +633,25 @@ def main():
             # Verify
             Q_verify = curve.scalar_multiply(d, G)
             if Q_verify == Q:
+                # Check against answer file if it exists
+                answer_path = input_path.parent / input_path.name.replace('case_', 'answer_').replace('testcase_', 'answer_')
+                expected_d = None
+                if answer_path.exists():
+                    try:
+                        with open(answer_path, 'r') as f:
+                            expected_d = int(f.read().strip())
+                    except:
+                        pass
+
                 print()
                 print("="*70)
                 print(f"✓ Solution: d = {d}")
+                if expected_d is not None:
+                    print(f"Expected: d = {expected_d}")
                 print(f"Time: {elapsed:.6f} seconds")
-                print(f"Verification: PASSED")
+                print(f"Verification (P=d*G): PASSED")
+                if expected_d is not None:
+                    print(f"Cross-check (vs answer file): {'PASSED' if d == expected_d else 'FAILED'}")
                 print()
                 print("Note: MOV attack theory demonstrated (embedding degree found),")
                 print("      but practical solution obtained via BSGS.")

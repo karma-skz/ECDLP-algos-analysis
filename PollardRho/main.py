@@ -235,7 +235,10 @@ def main():
     # Verify order
     nG = curve.scalar_multiply(n, G)
     if nG is not None:
-        print("Warning: n*G ≠ O; provided n may not be the exact order of G")
+        print("Error: n*G ≠ O; provided n is NOT the order of G.")
+        print("Pollard's Rho requires the exact order of the subgroup.")
+        print("Aborting to prevent infinite loop.")
+        sys.exit(1)
     
     # Configuration
     partition_m = 32
@@ -266,11 +269,25 @@ def main():
         Q_verify = curve.scalar_multiply(d, G)
         verified = (Q_verify == Q)
         
+        # Check against answer file if it exists
+        answer_path = input_path.parent / input_path.name.replace('case_', 'answer_').replace('testcase_', 'answer_')
+        expected_d = None
+        if answer_path.exists():
+            try:
+                with open(answer_path, 'r') as f:
+                    expected_d = int(f.read().strip())
+            except:
+                pass
+        
         print(f"\n{'='*50}")
         print(f"Solution: d = {d}")
+        if expected_d is not None:
+            print(f"Expected: d = {expected_d}")
         print(f"Total steps: {total_steps}")
         print(f"Time: {elapsed:.6f} seconds")
-        print(f"Verification: {'PASSED' if verified else 'FAILED'}")
+        print(f"Verification (P=d*G): {'PASSED' if verified else 'FAILED'}")
+        if expected_d is not None:
+            print(f"Cross-check (vs answer file): {'PASSED' if d == expected_d else 'FAILED'}")
         print(f"{'='*50}")
         
         if not verified:
