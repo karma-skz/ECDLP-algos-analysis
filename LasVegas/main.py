@@ -294,6 +294,7 @@ def main():
     
     n_prime = 2  # Use 2 for faster performance
     max_attempts = 10000  # Need many attempts for probabilistic success
+    max_retries = 10
     
     print(f"Solving ECDLP using Las Vegas Algorithm...")
     print(f"Curve: y^2 = x^3 + {a}x + {b} (mod {p})")
@@ -301,13 +302,24 @@ def main():
     print(f"Parameters: n'={n_prime}, l={3*n_prime}")
     
     start_time = time.perf_counter()
-    d, attempts = las_vegas_ecdlp(curve, G, Q, n, n_prime, max_attempts)
+    
+    d = None
+    total_attempts = 0
+    
+    for retry in range(1, max_retries + 1):
+        if retry > 1:
+            print(f"\nRetry {retry}/{max_retries}...", flush=True)
+            
+        d_candidate, attempts = las_vegas_ecdlp(curve, G, Q, n, n_prime, max_attempts)
+        total_attempts += attempts
+        
+        if d_candidate is not None:
+            d = d_candidate
+            break
+    
     elapsed = time.perf_counter() - start_time
     
     if d is not None:
-        Q_verify = curve.scalar_multiply(d, G)
-        verified = (Q_verify == Q)
-        
         # Check against answer file if it exists
         answer_path = input_path.parent / input_path.name.replace('case_', 'answer_').replace('testcase_', 'answer_')
         expected_d = None
@@ -322,17 +334,24 @@ def main():
         print(f"Solution: d = {d}")
         if expected_d is not None:
             print(f"Expected: d = {expected_d}")
-        print(f"Attempts: {attempts}/{max_attempts}")
+        print(f"Total Attempts: {total_attempts}")
         print(f"Time: {elapsed:.6f} seconds")
+        
+        # Final Verification
+        Q_verify = curve.scalar_multiply(d, G)
+        verified = (Q_verify == Q)
         print(f"Verification (P=d*G): {'PASSED' if verified else 'FAILED'}")
+        
         if expected_d is not None:
             print(f"Cross-check (vs answer file): {'PASSED' if d == expected_d else 'FAILED'}")
         print(f"{'='*50}")
         
         if not verified:
+            print("Error: Algorithm returned incorrect result!")
             sys.exit(1)
+        sys.exit(0)
     else:
-        print(f"\nNo solution found after {max_attempts} attempts")
+        print(f"\nNo solution found after {max_retries} retries ({total_attempts} total attempts)")
         print(f"Time: {elapsed:.6f} seconds")
         print("Note: This is a probabilistic algorithm. Try increasing max_attempts or adjusting n_prime.")
         sys.exit(1)

@@ -59,13 +59,14 @@ def test_algorithm_quick(algo, bits):
 def generate_comparison_graphs(bit_start, bit_end):
     """Generate performance graphs for main algorithms."""
     
-    ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman', 'PollardRho', 'LasVegas']
+    ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman', 'PollardRho', 'LasVegas', 'MOV']
     colors = {
         'BruteForce': '#e74c3c',
         'BabyStep': '#3498db',
         'PohligHellman': '#2ecc71',
         'PollardRho': '#f39c12',
-        'LasVegas': '#9b59b6'
+        'LasVegas': '#9b59b6',
+        'MOV': '#34495e'
     }
     
     print(f"Collecting performance data for {bit_start}-{bit_end} bits...")
@@ -74,7 +75,7 @@ def generate_comparison_graphs(bit_start, bit_end):
     for bits in range(bit_start, bit_end + 1):
         print(f"  Testing {bits}-bit...", end='', flush=True)
         for algo in ALGORITHMS:
-            if bits > 18 and algo in ['PollardRho', 'LasVegas']:
+            if bits > 18 and algo in ['PollardRho', 'LasVegas', 'MOV']:
                 continue
             
             time_val = test_algorithm_quick(algo, bits)

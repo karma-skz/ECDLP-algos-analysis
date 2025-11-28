@@ -9,7 +9,8 @@ ALGORITHMS = {
     'BabyStep': {'script': 'BabyStep/main_optimized.py', 'timeout': 30},
     'PohligHellman': {'script': 'PohligHellman/main_optimized.py', 'timeout': 60},
     'PollardRho': {'script': 'PollardRho/main_optimized.py', 'timeout': 60},
-    'LasVegas': {'script': 'LasVegas/main_optimized.py', 'timeout': 60}
+    'LasVegas': {'script': 'LasVegas/main_optimized.py', 'timeout': 60},
+    'MOV': {'script': 'MOV/main_optimized.py', 'timeout': 60}
 }
 
 def run_test(script_path, test_file, timeout):
@@ -61,7 +62,7 @@ for bits in range(10, 15):
 print("\n" + "="*80)
 print("SUMMARY (Success Rate / Avg Time)")
 print("="*80)
-print(f"{'Bits':<6} {'BruteForce':<15} {'BabyStep':<15} {'PohligHellman':<18} {'PollardRho':<15} {'LasVegas':<15}")
+print(f"{'Bits':<6} {'BruteForce':<15} {'BabyStep':<15} {'PohligHellman':<18} {'PollardRho':<15} {'LasVegas':<15} {'MOV':<15}")
 print("-"*80)
 
 for bits in range(10, 15):

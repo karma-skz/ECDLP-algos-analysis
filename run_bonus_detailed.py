@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 from datetime import datetime
 
-ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman']
+ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman', 'MOV']
 
 # Try to import matplotlib
 try:
@@ -274,7 +274,8 @@ def generate_bonus_plots(plot_data, bit_lengths, log_dir):
     colors = {
         'BruteForce': '#e74c3c',
         'BabyStep': '#3498db',
-        'PohligHellman': '#2ecc71'
+        'PohligHellman': '#2ecc71',
+        'MOV': '#34495e'
     }
     
     # Create plots

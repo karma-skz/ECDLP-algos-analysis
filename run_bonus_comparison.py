@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 # Only deterministic algorithms for bonus (probabilistic ones not feasible)
-BONUS_ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman']
+BONUS_ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman', 'MOV']
 
 def discover_case_files(bit_length: int):
     """Return sorted list of case files for given bitsize."""

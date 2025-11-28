@@ -151,27 +151,44 @@ def main():
     print()
     
     max_attempts = 50000  # Increased attempts
+    max_retries = 10
     
     start_time = time.perf_counter()
-    d, attempts = las_vegas_optimized(curve, G, Q, n, max_attempts)
+    
+    d = None
+    total_attempts = 0
+    
+    for retry in range(1, max_retries + 1):
+        if retry > 1:
+            print(f"\nRetry {retry}/{max_retries}...", flush=True)
+            
+        d_candidate, attempts = las_vegas_optimized(curve, G, Q, n, max_attempts)
+        total_attempts += attempts
+        
+        if d_candidate is not None:
+            d = d_candidate
+            break
+    
     elapsed = time.perf_counter() - start_time
     
     if d is not None:
         print(f"\n{'='*50}")
         print(f"Solution: d = {d}")
-        print(f"Attempts: {attempts}/{max_attempts}")
+        print(f"Total Attempts: {total_attempts}")
         print(f"Time: {elapsed:.6f} seconds")
         
-        # Verify
+        # Final Verification
         Q_verify = fast_scalar_mult(d, G, curve)
         verified = (Q_verify == Q)
         print(f"Verification: {'PASSED' if verified else 'FAILED'}")
         print(f"{'='*50}")
         
         if not verified:
+            print("Error: Algorithm returned incorrect result!")
             sys.exit(1)
+        sys.exit(0)
     else:
-        print(f"\nNo solution found after {max_attempts} attempts")
+        print(f"\nNo solution found after {max_retries} retries ({total_attempts} total attempts)")
         print(f"Time: {elapsed:.6f} seconds")
         print("Note: Las Vegas is highly probabilistic and may not succeed on large inputs.")
         sys.exit(1)

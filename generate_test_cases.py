@@ -21,6 +21,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from utils import EllipticCurve
 
+def compute_point_order(curve, G):
+    """Compute the exact order of point G by naive doubling.
+
+    This is fast enough for p up to 50 bits (your testcase limit).
+    """
+    P = G
+    n = 1
+    while True:
+        P = curve.add(P, G)
+        n += 1
+        if P is None:   # Point at infinity
+            return n
+
 def is_prime(n):
     """Miller-Rabin primality test."""
     if n < 2:
@@ -202,7 +215,7 @@ def generate_test_cases_for_bits(k, num_cases=5):
         Q = curve.scalar_multiply(d, G)
         
         # Use p+1 as order approximation
-        n = p + 1
+        n = compute_point_order(curve, G)
         
         test_dir = Path(__file__).parent / 'test_cases' / f'{k:02d}bit'
         test_dir.mkdir(parents=True, exist_ok=True)

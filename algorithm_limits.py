@@ -8,7 +8,8 @@ Defines which algorithms can handle which bit sizes of ECDLP problems.
 # Algorithm feasibility limits (in bits)
 ALGORITHM_LIMITS = {
     'BruteForce': {
-        'practical': 14,  # Practically feasible
+        # 'practical': 14,  # Practically feasible
+        'practical': 40,  # Theoretically feasible
         'maximum': 40,    # Theoretically can test, but very slow
         'description': 'Exhaustive search. Practical up to 14 bits, theoretical up to 40 bits.'
     },
@@ -23,14 +24,26 @@ ALGORITHM_LIMITS = {
         'description': 'Pohlig-Hellman. Feasible up to 40 bits (factorization-dependent).'
     },
     'PollardRho': {
-        'practical': 16,  # Probabilistic, works sometimes
-        'maximum': 20,    # Beyond this: NOT FEASIBLE
+        # 'practical': 16,  # Probabilistic, works sometimes
+        # 'maximum': 20,    # Beyond this: NOT FEASIBLE
+        'practical': 30,  # Probabilistic, works sometimes
+        'maximum': 30,    # Beyond this: NOT FEASIBLE
         'description': 'Pollard Rho. Probabilistic, NOT FEASIBLE beyond 20 bits.'
     },
     'LasVegas': {
-        'practical': 14,  # Probabilistic, works sometimes
+        # 'practical': 14,  # Probabilistic, works sometimes
+        # 'maximum': 20,    # Beyond this: NOT FEASIBLE
+        'practical': 20,  # Probabilistic, works sometimes
         'maximum': 20,    # Beyond this: NOT FEASIBLE
+
         'description': 'Las Vegas. Probabilistic, NOT FEASIBLE beyond 20 bits.'
+    },
+    'MOV': {
+        # 'practical': 16,  # Depends on embedding degree
+        # 'maximum': 20,
+        'practical': 30,  # Depends on embedding degree
+        'maximum': 30,
+        'description': 'MOV Attack. Reduces to DLP in extension field. Requires small embedding degree.'
     }
 }
 

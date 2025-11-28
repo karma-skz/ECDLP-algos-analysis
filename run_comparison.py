@@ -6,7 +6,7 @@ import time
 import sys
 from pathlib import Path
 
-ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman', 'PollardRho'] #, 'LasVegas']
+ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman', 'PollardRho', 'LasVegas', 'MOV']
 
 def discover_case_files(bit_length: int):
     """Return sorted list of case files for given bitsize."""
@@ -52,7 +52,7 @@ def test_algorithm(algo, bit_length):
             
             # Extract attempt info for probabilistic algorithms
             attempts = None
-            if algo in ['PollardRho', 'LasVegas']:
+            if algo in ['PollardRho', 'LasVegas', 'MOV']:
                 if 'attempt' in result.stdout.lower() or 'Attempt' in result.stdout:
                     # Extract attempt number from output
                     import re
@@ -110,7 +110,7 @@ def format_results(results, algo_name):
         passed = f"(0/{denom})"
     
     # Add attempt info for probabilistic algorithms
-    if attempts_list and algo_name in ['PollardRho', 'LasVegas']:
+    if attempts_list and algo_name in ['PollardRho', 'LasVegas', 'MOV']:
         avg_attempts = sum(int(a) for a in attempts_list) / len(attempts_list)
         avg_str += f" [~{avg_attempts:.0f} attempts]"
     
@@ -145,8 +145,8 @@ def main():
         print(f"\n{bits}-bit:")
         for algo in ALGORITHMS:
             # Skip probabilistic algos for bits > 18
-            if bits > 18 and algo in ['PollardRho', 'LasVegas']:
-                print(f"  {algo:15s}: INFEASIBLE (not feasible beyond 18 bits)")
+            if bits > 18 and algo in ['PollardRho', 'LasVegas', 'MOV']:
+                print(f"  {algo:15s}: SKIPPED (too slow/probabilistic)")
                 continue
             
             results = test_algorithm(algo, bits)
@@ -182,7 +182,8 @@ def generate_plots(plot_data, bit_start, bit_end):
         'BabyStep': '#3498db',         # Blue
         'PohligHellman': '#2ecc71',    # Green
         'PollardRho': '#f39c12',       # Orange
-        'LasVegas': '#9b59b6'          # Purple
+        'LasVegas': '#9b59b6',          # Purple
+        'MOV': '#34495e'               # Dark Blue/Grey
     }
     
     # Plot 1: Linear scale (clipped for readability)
@@ -254,8 +255,9 @@ def generate_plots(plot_data, bit_start, bit_end):
                               verticalalignment='top',
                               bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
-    # Hide the 6th subplot (we only have 5 algorithms)
-    axes[5].axis('off')
+    # Hide the 6th subplot if not used (we have 6 algorithms now, so we use all)
+    if len(ALGORITHMS) < 6:
+        axes[5].axis('off')
     
     plt.suptitle(f'Individual Algorithm Performance ({bit_start}-{bit_end} bits)',  # type: ignore
                 fontsize=16, fontweight='bold', y=1.00)
