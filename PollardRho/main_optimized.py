@@ -11,6 +11,7 @@ Space Complexity: O(1)
 import sys
 import time
 import random
+import math
 from pathlib import Path
 from typing import List, Tuple, Optional
 from math import gcd
@@ -108,24 +109,6 @@ def fast_point_add(P: Point, Q: Point, curve: EllipticCurve) -> Point:
     return (result_x.value, result_y.value)
 
 
-def canonicalize(X: Point, A: int, B: int, curve: EllipticCurve, n: int) -> Tuple[Point, int, int]:
-    """
-    Apply negation map to choose canonical representative.
-    Choose between X and -X based on y-coordinate to speed up collision detection.
-    """
-    if X is None:
-        return X, A % n, B % n
-    
-    x, y = X
-    # Choose representative with smaller y-coordinate
-    if y > (curve.p - y) % curve.p:
-        X = (x % curve.p, (-y) % curve.p)
-        A = (-A) % n
-        B = (-B) % n
-    
-    return X, A % n, B % n
-
-
 def make_partition_table(curve: EllipticCurve, G: Point, Q: Point, n: int, m: int = 16) -> Tuple[List[Tuple[int, int]], List[Point]]:
     """
     Build m-way partition jump table for pseudo-random walks.
@@ -153,8 +136,12 @@ def make_partition_table(curve: EllipticCurve, G: Point, Q: Point, n: int, m: in
 def pollard_rho_optimized(curve: EllipticCurve, G: Point, Q: Point, n: int, 
                           max_steps: int = 10_000_000, partition_m: int = 32) -> Tuple[Optional[int], int]:
     """
-    Solve ECDLP using Pollard's Rho with Floyd cycle detection and C++ optimization.
-    Each call builds a fresh partition table for better randomness.
+    Solve ECDLP using Pollard's Rho with Floyd cycle detection.
+    
+    FIX: The 'canonicalize' (Negation Map) has been REMOVED.
+    Using negation map with standard random walks (X_new = X + R_i) causes 
+    paths to diverge because -(X + R) != (-X + R). 
+    Removing it restores correct convergence behavior.
     """
     if G is None or Q is None:
         return None, 0
@@ -167,7 +154,8 @@ def pollard_rho_optimized(curve: EllipticCurve, G: Point, Q: Point, n: int,
         A = random.randrange(n)
         B = random.randrange(n)
         X = fast_point_add(fast_scalar_mult(A, G, curve), fast_scalar_mult(B, Q, curve), curve)
-        return canonicalize(X, A, B, curve, n)
+        # FIX: Return raw state, do not canonicalize
+        return X, A, B
     
     def step(state: Tuple[Point, int, int]) -> Tuple[Point, int, int]:
         """Perform one step of the random walk."""
@@ -183,7 +171,8 @@ def pollard_rho_optimized(curve: EllipticCurve, G: Point, Q: Point, n: int,
         A_new = (A + u_i) % n
         B_new = (B + v_i) % n
         
-        return canonicalize(X_new, A_new, B_new, curve, n)
+        # FIX: Return raw state, do not canonicalize
+        return X_new, A_new, B_new
     
     # Floyd's cycle detection
     tortoise = random_state()
@@ -195,8 +184,8 @@ def pollard_rho_optimized(curve: EllipticCurve, G: Point, Q: Point, n: int,
         hare = step(step(hare))
         steps += 1
         
-        # Progress indicator every 50k steps
-        if steps % 50000 == 0:
+        # Progress indicator every 100k steps (only for long runs)
+        if max_steps > 200000 and steps % 100000 == 0:
             print(f"  Step {steps}/{max_steps}...")
         
         X_t, A_t, B_t = tortoise
@@ -259,7 +248,7 @@ def main():
     if len(sys.argv) > 1:
         input_path = Path(sys.argv[1])
     else:
-        input_path = script_dir / 'input' / 'small_test.txt'
+        input_path = script_dir / 'testcases' / '10bit.txt'
     
     if not input_path.exists():
         print(f"Error: Input file not found: {input_path}", file=sys.stderr)
@@ -280,28 +269,40 @@ def main():
         print("Error: Target point Q is not on the curve", file=sys.stderr)
         sys.exit(1)
     
-    # Configuration - many short attempts work better than few long ones
-    partition_m = 20  # Fewer partitions for simpler walks
-    max_steps = 1_000_000  # Steps per attempt (1M)
-    max_attempts = 20  # Many attempts to account for randomness
+    # -----------------------------------------------------------
+    # DYNAMIC CONFIGURATION
+    # -----------------------------------------------------------
+    expected_steps = int(math.isqrt(n))
+    
+    # Limit: 20x expected, but at least 2000
+    max_steps = max(2000, expected_steps * 20)
+    
+    # Partitions: 32 usually safer for larger curves
+    partition_m = 32 if n > 1_000_000 else 16
+    
+    # Attempts: Lowered back to 20 since fix should improve stability
+    max_attempts = 20
     
     print(f"Solving ECDLP using Optimized Pollard Rho...")
     print(f"Curve: y^2 = x^3 + {a}x + {b} (mod {p})")
     print(f"G = ({G[0]}, {G[1]}), Q = ({Q[0]}, {Q[1]}), n = {n}") # type: ignore
-    print(f"Partitions: {partition_m}, Max steps/attempt: {max_steps}, Attempts: {max_attempts}")
+    print(f"Complexity: ~{expected_steps} steps (sqrt(n))")
+    print(f"Settings: Limit={max_steps} steps/attempt, Partitions={partition_m}")
     
     start_time = time.perf_counter()
     total_steps = 0
     d = None
     
     for attempt in range(1, max_attempts + 1):
-        print(f"\n=== Attempt {attempt}/{max_attempts} ===")
+        if max_steps > 10000 or attempt % 5 == 0:
+            print(f"\n=== Attempt {attempt}/{max_attempts} ===")
+            
         d_try, steps = pollard_rho_optimized(curve, G, Q, n, max_steps, partition_m)
         total_steps += steps
         
         if d_try is not None:
             d = d_try
-            print(f"\n✓ Solution found on attempt {attempt}!")
+            print(f"✓ Solution found on attempt {attempt}!")
             break
     
     elapsed = time.perf_counter() - start_time
@@ -324,7 +325,7 @@ def main():
         print(f"No solution found after {max_attempts} attempts")
         print(f"Total steps: {total_steps:,}")
         print(f"Time: {elapsed:.6f} seconds")
-        print(f"Note: Pollard Rho is probabilistic and may need more attempts.")
+        print(f"Note: Pollard Rho is probabilistic. Try increasing max_steps for this bit length.")
         print(f"{'='*50}")
         sys.exit(1)
 

@@ -1,22 +1,25 @@
 """
-Optimized Las Vegas with C++ backend for scalar multiplication.
+Optimized Las Vegas (Birthday Attack) with C++ backend.
 
-This uses ctypes to call compiled C++ code for faster elliptic curve operations.
-To compile: g++ -O3 -shared -fPIC ecc_fast.cpp -o ecc_fast.so
+This implements a Randomized Collision Search (Birthday Attack).
+Time Complexity: O(sqrt(n))
+Space Complexity: O(sqrt(n))
 """
 
 import sys
 import time
 import random
 import ctypes
+import math
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import EllipticCurve, Point, load_input, mod_inv
 
-
-# Try to load C++ library
+# -----------------------------------------------------------------------------
+# C++ Library Loading
+# -----------------------------------------------------------------------------
 try:
     lib_path = Path(__file__).parent / "ecc_fast.so"
     if lib_path.exists():
@@ -33,7 +36,7 @@ try:
             ctypes.POINTER(ctypes.c_longlong),  # result_x
             ctypes.POINTER(ctypes.c_longlong),  # result_y
         ]
-        ecc_lib.scalar_mult.restype = ctypes.c_int  # 0 if infinity, 1 if valid point
+        ecc_lib.scalar_mult.restype = ctypes.c_int
         
         USE_CPP = True
         print("✓ Using C++ optimized scalar multiplication")
@@ -69,60 +72,96 @@ def fast_scalar_mult(k: int, G: Point, curve: EllipticCurve) -> Optional[Point]:
     else:
         return None
 
+def fast_point_add(P: Point, Q: Point, curve: EllipticCurve) -> Point:
+    """Helper for C++ point addition if you implement it, else Python."""
+    return curve.add(P, Q)
+
+
+# -----------------------------------------------------------------------------
+# FIXED ALGORITHM: Birthday Attack (Robust for Composite n)
+# -----------------------------------------------------------------------------
 
 def las_vegas_optimized(curve: EllipticCurve, G: Point, Q: Point, n: int, 
-                       max_attempts: int = 100000) -> Tuple[Optional[int], int]:
+                       max_attempts: int = 1000000) -> Tuple[Optional[int], int]:
     """
-    Optimized Las Vegas using C++ for scalar multiplications.
+    Optimized Las Vegas (Birthday Attack).
+    Generates random points R = aG + bQ and stores them.
+    If a collision occurs (same R found twice), we solve the ECDLP.
     """
     
-    for attempt in range(1, max_attempts + 1):
-        if attempt % 1000 == 0:  # Progress every 1000 attempts
-            print(f"  Attempt {attempt}/{max_attempts}...", flush=True)
+    # Storage for Birthday Attack: Point -> (a, b)
+    visited: Dict[Point, Tuple[int, int]] = {}
+    
+    # Dynamic limit based on sqrt(n)
+    # We need approx sqrt(pi * n / 2) points for 50% collision chance
+    expected_points = int(math.sqrt(math.pi * n / 2))
+    limit = min(max_attempts, max(2000, expected_points * 2))
+    
+    # Only print for larger cases to reduce noise on small ones
+    if n > 10000:
+        print(f"  Target: Collecting ~{expected_points} points...", flush=True)
+
+    for i in range(1, limit + 1):
+        if i % 50000 == 0:
+            print(f"  stored {i} points...", flush=True)
+
+        # 1. Pick random coefficients
+        a = random.randrange(n)
+        b = random.randrange(n)
         
-        try:
-            k = 10  # Number of random points
+        # 2. Compute R = aG + bQ
+        term1 = fast_scalar_mult(a, G, curve)
+        term2 = fast_scalar_mult(b, Q, curve)
+        R = fast_point_add(term1, term2, curve)
+        
+        if R is None:
+            continue 
             
-            r_vals = [random.randrange(1, n) for _ in range(k)]
-            s_vals = [random.randrange(1, n) for _ in range(k)]
+        # 3. Check for Collision
+        if R in visited:
+            a_old, b_old = visited[R]
             
-            # Try random linear combinations
-            for trial in range(50):
-                a_coeffs = [random.randrange(0, min(1000, n)) for _ in range(k)]
-                b_coeffs = [random.randrange(0, min(1000, n)) for _ in range(k)]
+            # Equation: (a - a_old)G = (b_old - b)Q
+            num = (a - a_old) % n
+            den = (b_old - b) % n
+            
+            if den == 0:
+                continue 
+
+            # ROBUST SOLVER for gcd(den, n) > 1
+            g = math.gcd(den, n)
+            
+            if g == 1:
+                # Standard case: den is coprime to n
+                try:
+                    den_inv = mod_inv(den, n)
+                    d = (num * den_inv) % n
+                    if fast_scalar_mult(d, G, curve) == Q:
+                        return d, i
+                except (ValueError, ZeroDivisionError):
+                    pass
+            elif num % g == 0:
+                # Composite case: Solve in reduced group n/g
+                n_prime = n // g
+                den_prime = den // g
+                num_prime = num // g
                 
-                # Compute sum using fast multiplication
-                result = None
-                
-                # Add a_i * (r_i * G)
-                for i, a in enumerate(a_coeffs):
-                    if a != 0:
-                        term = fast_scalar_mult((a * r_vals[i]) % n, G, curve)
-                        result = curve.add(result, term)
-                
-                # Add b_j * (s_j * Q)
-                for j, b in enumerate(b_coeffs):
-                    if b != 0:
-                        term = fast_scalar_mult((b * s_vals[j]) % n, Q, curve)
-                        result = curve.add(result, term)
-                
-                # Check if we hit identity
-                if result is None:
-                    sum_a_r = sum(a_coeffs[i] * r_vals[i] for i in range(k)) % n
-                    sum_b_s = sum(b_coeffs[j] * s_vals[j] for j in range(k)) % n
+                try:
+                    den_inv = mod_inv(den_prime, n_prime)
+                    d_base = (num_prime * den_inv) % n_prime
                     
-                    if sum_b_s != 0:
-                        sum_b_s_inv = mod_inv(sum_b_s, n)
-                        d = ((-sum_a_r) * sum_b_s_inv) % n
-                        
-                        # Verify with fast multiplication
-                        if fast_scalar_mult(d, G, curve) == Q:
-                            return d, attempt
+                    # The solution is one of: d_base, d_base + n', d_base + 2n', ...
+                    for k in range(g):
+                        d_cand = d_base + k * n_prime
+                        if fast_scalar_mult(d_cand, G, curve) == Q:
+                            return d_cand, i
+                except (ValueError, ZeroDivisionError):
+                    pass
         
-        except (ValueError, ZeroDivisionError):
-            continue
-    
-    return None, max_attempts
+        # 4. Store point
+        visited[R] = (a, b)
+        
+    return None, limit
 
 
 def main():
@@ -145,54 +184,38 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     
-    print(f"Solving ECDLP using Optimized Las Vegas...")
+    print(f"Solving ECDLP using Optimized Las Vegas (Birthday Attack)...")
     print(f"Curve: y^2 = x^3 + {a}x + {b} (mod {p})")
     print(f"G = ({G[0]}, {G[1]}), Q = ({Q[0]}, {Q[1]}), n = {n}") #type: ignore
-    print()
     
-    max_attempts = 50000  # Increased attempts
-    max_retries = 10
+    if n > 2**30:
+        print("\n[WARNING] Curve > 30 bits. Algorithm may run out of RAM.")
+    
+    # Calculate sensible limits
+    max_steps = 2_000_000 
     
     start_time = time.perf_counter()
     
-    d = None
-    total_attempts = 0
-    
-    for retry in range(1, max_retries + 1):
-        if retry > 1:
-            print(f"\nRetry {retry}/{max_retries}...", flush=True)
-            
-        d_candidate, attempts = las_vegas_optimized(curve, G, Q, n, max_attempts)
-        total_attempts += attempts
-        
-        if d_candidate is not None:
-            d = d_candidate
-            break
+    d, attempts = las_vegas_optimized(curve, G, Q, n, max_steps)
     
     elapsed = time.perf_counter() - start_time
     
     if d is not None:
         print(f"\n{'='*50}")
         print(f"Solution: d = {d}")
-        print(f"Total Attempts: {total_attempts}")
+        print(f"Points Stored: {attempts}")
         print(f"Time: {elapsed:.6f} seconds")
         
-        # Final Verification
+        # Verification
         Q_verify = fast_scalar_mult(d, G, curve)
         verified = (Q_verify == Q)
         print(f"Verification: {'PASSED' if verified else 'FAILED'}")
         print(f"{'='*50}")
-        
-        if not verified:
-            print("Error: Algorithm returned incorrect result!")
-            sys.exit(1)
-        sys.exit(0)
+        if not verified: sys.exit(1)
     else:
-        print(f"\nNo solution found after {max_retries} retries ({total_attempts} total attempts)")
+        print(f"\nNo solution found after storing {attempts} points.")
         print(f"Time: {elapsed:.6f} seconds")
-        print("Note: Las Vegas is highly probabilistic and may not succeed on large inputs.")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
