@@ -8,7 +8,7 @@ requirements.txt
 __pycache__/
 *.pdf
 bonus_logs/
-graphs/
 *.so 
 vevn/
 *.DS_Store
+oldtc/

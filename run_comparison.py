@@ -7,8 +7,10 @@ import sys
 from pathlib import Path
 
 # Enable the main algorithms for comparison
-ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman', 'PollardRho', 'LasVegas']
+#ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman', 'PollardRho', 'LasVegas']
 #ALGORITHMS = ['PohligHellman','PollardRho', 'LasVegas']
+ALGORITHMS = ['BabyStep', 'PohligHellman', 'PollardRho', 'LasVegas']
+
 
 def discover_case_files(bit_length: int):
     """Return sorted list of case files for given bitsize."""
@@ -146,7 +148,7 @@ def main():
             if algo == 'BruteForce' and bits > 24:
                 print(f"  {algo:15s}: SKIPPED (exponential time)")
                 continue
-            if algo == 'BabyStep' and bits > 28:
+            if algo == 'BabyStep' and bits > 50:
                 print(f"  {algo:15s}: SKIPPED (memory limit)")
                 continue
             # PollardRho and PohligHellman allowed on all sizes

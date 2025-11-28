@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-ECC ECDLP Test Case Generator (Zero-Dependency Version)
+ECC ECDLP Test Case Generator (Fixed Prime-Order Mode)
 
 Method:
-    Uses "Supersingular Curves" of the form y^2 = x^3 + b (mod p)
-    where p = 11 mod 12.
+    Uses Supersingular Curves y^2 = x^3 + b (mod p) with p = 11 mod 12.
     
-    Mathematical Property:
-    For these specific curves, the order N is ALWAYS exactly (p + 1).
+    CORRECTION:
+    Since p = 11 mod 12, (p+1) is always divisible by 12.
+    We search for p such that q = (p + 1) / 12 is PRIME.
     
-    This allows us to generate 50-bit (or even 100-bit) test cases 
-    instantly in pure Python without needing Schoof's algorithm or SymPy.
+    This gives us a curve of order N = 12*q.
+    We then work in the subgroup of prime order q.
 """
 
 import sys
@@ -18,12 +18,11 @@ import random
 from pathlib import Path
 
 # --- Configuration ---
-# Bit limits
 MIN_BITS = 10
 MAX_BITS = 60
 
 # ==========================================
-# Elliptic Curve Class (Minimal)
+# Elliptic Curve Class
 # ==========================================
 class EllipticCurve:
     def __init__(self, a, b, p):
@@ -56,11 +55,11 @@ class EllipticCurve:
         return R
 
 # ==========================================
-# Math Helpers (Pure Python)
+# Math Helpers
 # ==========================================
 
-def is_prime_miller_rabin(n, k=10):
-    """Returns True if n is likely prime."""
+def is_prime_miller_rabin(n, k=20): 
+    """Returns True if n is prime."""
     if n == 2 or n == 3: return True
     if n % 2 == 0 or n < 2: return False
     
@@ -79,53 +78,66 @@ def is_prime_miller_rabin(n, k=10):
         else: return False
     return True
 
-def find_special_prime(bits, seed_offset=0):
+def find_strong_prime_pair(bits, seed_offset=0):
     """
-    Finds a prime p such that p = 11 mod 12.
-    
-    Why 11 mod 12?
-    1. p = 2 mod 3  -> Ensures curve order is exactly p + 1.
-    2. p = 3 mod 4  -> Ensures easy square roots using x^((p+1)/4).
-    Combined: p = 11 mod 12.
+    Finds a pair (p, q) such that:
+    1. p is a prime of 'bits' length.
+    2. p = 11 mod 12.
+    3. q = (p + 1) / 12 is ALSO PRIME.
     """
-    random.seed(bits * 1000 + seed_offset)
+    random.seed(bits * 10000 + seed_offset)
     min_val = 2 ** (bits - 1)
     max_val = 2 ** bits - 1
     
-    # Start at a random location
+    # Start random search
     start = random.randrange(min_val, max_val)
-    # Align to 11 mod 12
-    candidate = start - (start % 12) + 11
+    candidate = start - (start % 12) + 11 
     
-    # Search forward
-    for i in range(20000):
-        curr = candidate + (12 * i)
-        if curr >= max_val: break
-        if is_prime_miller_rabin(curr):
-            return curr
-    return None
+    attempts = 0
+    while attempts < 100000:
+        if candidate >= max_val:
+            candidate = min_val - (min_val % 12) + 11
+            
+        # Check if p is prime
+        if is_prime_miller_rabin(candidate):
+            # FIX: Divide by 12, not 6
+            # Since p = 11 mod 12, p+1 is divisible by 12.
+            q = (candidate + 1) // 12
+            
+            # If q is composite, try removing small factors (optional optimization)
+            # But for "Strong Prime" strict definition, we just check if q is prime directly
+            if is_prime_miller_rabin(q):
+                return candidate, q
+        
+        candidate += 12
+        attempts += 1
+        
+    return None, None
 
-def find_point_on_curve(p, b):
+def find_subgroup_generator(curve, p, q):
     """
-    Finds a point (x, y) on y^2 = x^3 + b.
-    Since p = 3 mod 4, we can compute sqrt easily.
+    Finds a generator G of prime order q.
+    Curve Order N = 12 * q.
     """
     while True:
         x = random.randint(0, p - 1)
-        rhs = (pow(x, 3, p) + b) % p
+        rhs = (pow(x, 3, p) + curve.b) % p
         
-        # Euler's Criterion: Check if rhs is a quadratic residue
-        # rhs^((p-1)/2) == 1 mod p
         if pow(rhs, (p - 1) // 2, p) != 1:
             continue
             
-        # Compute Square Root for p = 3 mod 4
-        # y = rhs^((p+1)/4) mod p
         y = pow(rhs, (p + 1) // 4, p)
-        return (x, y)
+        P = (x, y)
+        
+        # Project into subgroup: G = 12 * P
+        # This removes the cofactor of 12.
+        G = curve.scalar_multiply(12, P)
+        
+        if G is not None:
+            return G
 
 # ==========================================
-# Main Generator Logic
+# Main Generator
 # ==========================================
 
 def generate_test_cases_for_bits(k, num_cases=5):
@@ -133,50 +145,40 @@ def generate_test_cases_for_bits(k, num_cases=5):
         print(f"Error: Bit length {k} out of range")
         return 0
     
-    print(f"Generating {num_cases} test cases for {k}-bit ECDLP...")
+    print(f"Generating {num_cases} test cases for {k}-bit (Prime Subgroup q)...")
     
     success_count = 0
     for case_num in range(1, num_cases + 1):
         try:
-            # 1. Find Special Prime (p = 11 mod 12)
-            p = find_special_prime(k, seed_offset=case_num)
+            p, q = find_strong_prime_pair(k, seed_offset=case_num)
+            
             if not p:
-                print(f"  [Skip] Case {case_num}: Could not find prime.")
+                print(f"  [Skip] Case {case_num}: Could not find strong prime.")
                 continue
             
-            # 2. Set Curve Parameters
-            # We use y^2 = x^3 + b. (a is always 0)
-            # Varying b gives us different curves.
             a = 0
             b = random.randint(1, p - 1)
-            
-            # 3. CALCULATE ORDER
-            # Magic: For this curve form and prime type, Order is EXACTLY p + 1
-            n = p + 1
-            
             curve = EllipticCurve(a, b, p)
             
-            # 4. Find Generator
-            G = find_point_on_curve(p, b)
+            G = find_subgroup_generator(curve, p, q)
             
-            # 5. Generate Secret (Full range)
-            d = random.randint(1, n - 1)
+            # Secret d in range [1, q-1]
+            d = random.randint(1, q - 1)
             
-            # 6. Compute Public Key
             Q = curve.scalar_multiply(d, G)
             if Q is None: continue
 
-            # 7. Write Files
             test_dir = Path(__file__).parent / 'test_cases' / f'{k:02d}bit'
             test_dir.mkdir(parents=True, exist_ok=True)
             
+            # We write 'q' as the order so algorithms solve for the prime subgroup
             with open(test_dir / f'case_{case_num}.txt', 'w') as f:
-                f.write(f'{p}\n{a} {b}\n{G[0]} {G[1]}\n{n}\n{Q[0]} {Q[1]}\n') 
+                f.write(f'{p}\n{a} {b}\n{G[0]} {G[1]}\n{q}\n{Q[0]} {Q[1]}\n') 
             
             with open(test_dir / f'answer_{case_num}.txt', 'w') as f:
                 f.write(f'{d}\n')
             
-            print(f"  ✓ Case {case_num}: {k}-bit, p={p} (Order p+1)")
+            print(f"  ✓ Case {case_num}: p={p}, Subgroup Prime q={q}")
             success_count += 1
             
         except Exception as e:
@@ -190,14 +192,13 @@ def main():
     start_bit, end_bit = 10, 20
     cases_per_bit = 5
 
-    # Argument Parsing
     if len(args) >= 1: start_bit = int(args[0])
     if len(args) >= 2: end_bit = int(args[1])
     if len(args) >= 3: cases_per_bit = int(args[2])
     
     print("="*60)
-    print("ECC Generator: Zero-Dependency Mode")
-    print("Using Supersingular Curves (N = p + 1)")
+    print("ECC Generator: Prime Subgroup Mode (Fixed)")
+    print("Generates curves with order N = 12*q where q is PRIME.")
     print("="*60)
 
     for k in range(start_bit, end_bit + 1):

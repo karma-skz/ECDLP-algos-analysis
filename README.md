@@ -21,18 +21,14 @@ python run_comparisons.py # runs from 10 to 30 bit length
 ## Quick Start
 
 ```bash
-# Run individual algorithm
-python3 <algoname>/main_optimized.py <testcase_path>
+python3 generate_test_cases.py <start_bit> <end_bit>  
 
-# Compare all algorithms
-python3 run_comparisons.py <start_bit_size> <end_bit_size> # default : 10 18
-# It also generates graphs in graphs/ directory
+python3 algo_name/main_optimized.py <testcase_path> # test specific algo
 
-# Generate test cases
-python3 generate_test_cases.py <k>                                   # single bitsize (default 5 cases)
-python3 generate_test_cases.py <start_bit> <end_bit> [cases_per_bit]  # range
-# or with flags:
-python3 generate_test_cases.py --start <s> --end <e> [--cases <n>]
+python3 run_comparisons.py <start_bit> <end_bit>  # compare all algos
+# make sure to install matplotlib before this for graphs
+
+python3 demo.py <testcase_path> # demo with user input
 ```
 
 ## Input Format
@@ -49,23 +45,30 @@ Output: Secret `d` where Q = d·G
 
 ## Bonus: Partial Key Leakage
 
-Side-channel attack simulations showing how leaked information breaks ECDLP:
-
 ```bash
 python3 <algoname>/bonus.py <testcase_path>
 
-python3 run_bonus_comparison.py 
-python3 run_bonus_detailed.py
+python3 run_bonus_scenarios.py <testcase_path>
 ```
-
-**Bonus Results:**
-- BruteForce: 16-bit LSB leak → 65,536x search space reduction
-- BSGS: 16-bit MSB leak → Reduces √n parameter dramatically
-- Pohlig-Hellman: Residue leaks eliminate CRT subproblems
 
 ## NOTE :
 
-In run_comparisons.py, uncomment : 
-```python
-ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman','PollardRho', 'LasVegas']
-```
+1. In run_comparisons.py, keep the required algos : 
+    ```python
+    ALGORITHMS = ['BruteForce', 'BabyStep', 'PohligHellman','PollardRho', 'LasVegas']
+    ```
+2. For rigorous tests, U may need to uncomment :
+    ```python
+    # --- SMART LIMITS ---
+    if algo == 'BruteForce' and bits > 24:
+        print(f"  {algo:15s}: SKIPPED (exponential time)")
+        continue
+    if algo == 'BabyStep' and bits > 50:
+        print(f"  {algo:15s}: SKIPPED (memory limit)")
+        continue
+    ```
+3. In LasVegas/main_optimized.py, u can change the limit :
+
+    ```python
+    limit = min(max_attempts, max(2000, expected_points * 10))  # 10 -> other smaller no.
+    ```
