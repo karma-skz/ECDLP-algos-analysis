@@ -77,7 +77,7 @@ def main():
     print(f"Simulating leak of d mod {mod}")
     d = solve_with_leak(curve, G, Q, n, leaks)
     print(f"{'='*60}")
-    print(f"Result: {'✓ PASSED' if d==d_real else '✗ FAILED'}")
+    print(f"Result: {'[SUCCESS]' if d==d_real else '[FAILED]'}")
 
     print_bonus_result("PohligHellman", "success" if d == d_real else "fail", 0, 0, {"leaked_modulus": mod})
 

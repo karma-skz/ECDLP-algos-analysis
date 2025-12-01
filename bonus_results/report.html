@@ -22,9 +22,9 @@
     <div class="container">
         <h1>ECC Side-Channel & Bonus Scenarios Report</h1>
         <div class="meta">
-            <p><strong>Date:</strong> 2025-12-01 17:53:32</p>
-            <p><strong>Test Case:</strong> test_cases\20bit\case_1.txt</p>
-            <p><strong>Curve Size:</strong> 20-bit</p>
+            <p><strong>Date:</strong> 2025-12-01 18:11:56</p>
+            <p><strong>Test Case:</strong> test_cases\14bit\case_1.txt</p>
+            <p><strong>Curve Size:</strong> 14-bit</p>
         </div>
 
         <div class="card">
@@ -51,25 +51,25 @@
                     <tr>
                         <td>BruteForce</td>
                         <td class="success">SUCCESS</td>
-                        <td>0.000465</td>
-                        <td>311</td>
-                        <td>speedup=2.5e+02x, leaked_bits=8</td>
+                        <td>0.000029</td>
+                        <td>3</td>
+                        <td>speedup=7.1e+00x, leaked_bits=8</td>
                     </tr>
         
                     <tr>
                         <td>BabyStep</td>
                         <td class="success">SUCCESS</td>
-                        <td>0.000150</td>
-                        <td>28</td>
-                        <td>ram_savings=10.1x</td>
+                        <td>0.000047</td>
+                        <td>3</td>
+                        <td>ram_savings=10.3x</td>
                     </tr>
         
                     <tr>
                         <td>PollardRho</td>
                         <td class="success">SUCCESS</td>
-                        <td>0.001857</td>
+                        <td>0.000440</td>
                         <td>0</td>
-                        <td>interval_width=39900</td>
+                        <td>interval_width=504</td>
                     </tr>
         
                     <tr>
@@ -77,14 +77,14 @@
                         <td class="success">SUCCESS</td>
                         <td>0.000000</td>
                         <td>0</td>
-                        <td>leaked_modulus=79801</td>
+                        <td>leaked_modulus=1009</td>
                     </tr>
         
                     <tr>
                         <td>LasVegas</td>
                         <td class="success">SUCCESS</td>
-                        <td>0.015681</td>
-                        <td>382</td>
+                        <td>0.004226</td>
+                        <td>259</td>
                         <td>sigma=333.3333333333333</td>
                     </tr>
         
@@ -101,7 +101,7 @@
                 labels: ["BruteForce", "BabyStep", "PollardRho", "PohligHellman", "LasVegas"],
                 datasets: [{
                     label: 'Execution Time (seconds)',
-                    data: [0.0004650000046240166, 0.00014969999756431207, 0.001857199997175485, 1e-06, 0.01568050000059884],
+                    data: [2.9100003303028643e-05, 4.720000288216397e-05, 0.000440099996922072, 1e-06, 0.004225899996527005],
                     backgroundColor: ["#4CAF50", "#4CAF50", "#4CAF50", "#4CAF50", "#4CAF50"],
                     borderWidth: 1
                 }]

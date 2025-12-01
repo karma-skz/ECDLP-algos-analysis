@@ -75,9 +75,9 @@ def main():
     
     if d == d_real:
         print(f"Found: {d} in {tries} tries ({t:.6f}s)")
-        print(f"Result: ✓ PASSED")
+        print(f"Result: [SUCCESS]")
     else:
-        print(f"Result: ✗ FAILED (Time: {t:.6f}s, Tries: {tries})")
+        print(f"Result: [FAILED] (Time: {t:.6f}s, Tries: {tries})")
         print("Note: Failed to find key in tail of distribution.")
 
     print_bonus_result("LasVegas", "success" if d == d_real else "fail", t, tries, {"sigma": sigma})

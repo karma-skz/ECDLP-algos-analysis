@@ -130,9 +130,9 @@ def main():
     
     print(f"{'-'*70}")
     if d == d_real:
-        print(f"Result: ✓ FOUND (d={d})")
+        print(f"Result: [SUCCESS] (d={d})")
     else:
-        print(f"Result: ✗ FAILED (Found {d}, Expected {d_real})")
+        print(f"Result: [FAILED] (Found {d}, Expected {d_real})")
     print(f"Time:   {t:.6f}s")
 
     print_bonus_result("PollardRho", "success" if d == d_real else "fail", t, 0, {"interval_width": target_width})
