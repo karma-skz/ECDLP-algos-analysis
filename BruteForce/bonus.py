@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import EllipticCurve, Point, load_input
+from utils.bonus_utils import print_bonus_result
 
 USE_CPP = False
 ecc_lib = None
@@ -41,26 +42,26 @@ def solve_lsb(curve, G, Q, n, leak, bits):
     # Pre-calc step point
     StepG = fast_mult(step, G, curve)
     
-    start = time.time()
+    start = time.perf_counter()
     while curr_d < n:
         if curr_P == Q:
             return curr_d
         curr_P = curve.add(curr_P, StepG)
         curr_d += step
         # Timeout after 5s
-        if time.time() - start > 5: return None 
+        if time.perf_counter() - start > 5: return None 
     return None
 
 def solve_interval(curve, G, Q, lower, upper):
     """Search d in [lower, upper]."""
     curr_P = fast_mult(lower, G, curve)
-    start = time.time()
+    start = time.perf_counter()
     
     for d in range(lower, upper + 1):
         if curr_P == Q:
             return d
         curr_P = curve.add(curr_P, G)
-        if time.time() - start > 5: return None
+        if time.perf_counter() - start > 5: return None
     return None
 
 def main():
@@ -80,10 +81,10 @@ def main():
     print(f"{'-'*70}")
 
     # Baseline (Mocked for large curves)
-    t0 = time.time()
+    t0 = time.perf_counter()
     if n < 2000000: 
         solve_interval(curve, G, Q, 1, n)
-        base_t = max(0.0001, time.time() - t0)
+        base_t = max(0.000001, time.perf_counter() - t0)
     else:
         # Theoretical time: n / 1,000,000 ops/sec
         base_t = n / 1000000.0 
@@ -92,12 +93,12 @@ def main():
     # 1. Interval
     width = 10000
     lower = max(1, d_real - width//2)
-    t0 = time.time()
+    t0 = time.perf_counter()
     d = solve_interval(curve, G, Q, lower, lower + width)
-    t = time.time() - t0
+    t = time.perf_counter() - t0
     
     speedup_str = f"{base_t/t:.1e}x" if t > 0 else "Inf"
-    print(f"{f'Interval (size {width})':<25} | {width:<12,} | {t:.4f}s   | {speedup_str}")
+    print(f"{f'Interval (size {width})':<25} | {width:<12,} | {t:.6f}s   | {speedup_str}")
 
     # 2. LSB (Dynamic)
     # Leak enough bits so remaining work is ~20 bits (1M ops)
@@ -107,12 +108,14 @@ def main():
     leak = d_real & ((1<<bits_to_leak)-1)
     space = n // (1<<bits_to_leak)
     
-    t0 = time.time()
+    t0 = time.perf_counter()
     d = solve_lsb(curve, G, Q, n, leak, bits_to_leak)
-    t = time.time() - t0
+    t = time.perf_counter() - t0
     
     speedup_str = f"{base_t/t:.1e}x" if t > 0 else "Inf"
-    print(f"{f'Known {bits_to_leak} LSBs':<25} | {space:<12,} | {t:.4f}s   | {speedup_str}")
+    print(f"{f'Known {bits_to_leak} LSBs':<25} | {space:<12,} | {t:.6f}s   | {speedup_str}")
+
+    print_bonus_result("BruteForce", "success" if d == d_real else "fail", t, space, {"speedup": speedup_str, "leaked_bits": bits_to_leak})
 
 if __name__ == "__main__":
     main()

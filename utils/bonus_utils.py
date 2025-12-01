@@ -217,3 +217,18 @@ def calculate_search_reduction(original_space: int, reduced_space: int) -> Tuple
     percentage = 100.0 * (1 - reduced_space / original_space)
     
     return reduction, f"{percentage:.2f}%"
+
+
+def print_bonus_result(algo: str, status: str, time_taken: float, steps: int, details: dict = None):
+    """
+    Print a standardized JSON result line for the runner to parse.
+    """
+    import json
+    data = {
+        "algo": algo,
+        "status": status,
+        "time": time_taken,
+        "steps": steps,
+        "details": details or {}
+    }
+    print(f"\nBONUS_RESULT: {json.dumps(data)}")

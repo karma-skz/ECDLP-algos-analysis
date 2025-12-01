@@ -6,6 +6,7 @@ import sys, time, math, random, ctypes
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import EllipticCurve, Point, load_input
+from utils.bonus_utils import print_bonus_result
 
 USE_CPP = False
 ecc_lib = None
@@ -123,16 +124,18 @@ def main():
     print(f"Interval: [{lower}, {upper}] (Width: {target_width:,})")
     print(f"Secret:   {d_real}")
     
-    t0 = time.time()
+    t0 = time.perf_counter()
     d = kangaroo(curve, G, Q, lower, upper)
-    t = time.time() - t0
+    t = time.perf_counter() - t0
     
     print(f"{'-'*70}")
     if d == d_real:
         print(f"Result: ✓ FOUND (d={d})")
     else:
         print(f"Result: ✗ FAILED (Found {d}, Expected {d_real})")
-    print(f"Time:   {t:.4f}s")
+    print(f"Time:   {t:.6f}s")
+
+    print_bonus_result("PollardRho", "success" if d == d_real else "fail", t, 0, {"interval_width": target_width})
 
 if __name__ == "__main__":
     main()

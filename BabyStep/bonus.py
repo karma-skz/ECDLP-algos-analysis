@@ -6,6 +6,7 @@ import sys, time, math, ctypes
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import EllipticCurve, Point, load_input
+from utils.bonus_utils import print_bonus_result
 
 USE_CPP = False
 ecc_lib = None
@@ -66,13 +67,15 @@ def main():
 
     width = n // 100
     low = max(1, d_real - width//2)
-    t0 = time.time()
+    t0 = time.perf_counter()
     d = bsgs_range(curve, G, Q, low, low + width)
-    t = time.time() - t0
+    t = time.perf_counter() - t0
     m_opt = int(math.sqrt(width))
-    print(f"{'1% Interval Leak':<25} | {m_opt:<12,} | {t:.4f}s")
+    print(f"{'1% Interval Leak':<25} | {m_opt:<12,} | {t:.6f}s")
     print(f"{'-'*70}")
     print(f"RAM Savings: {m_std/max(1, m_opt):.1f}x less memory needed")
+
+    print_bonus_result("BabyStep", "success" if d == d_real else "fail", t, m_opt, {"ram_savings": f"{m_std/max(1, m_opt):.1f}x"})
 
 if __name__ == "__main__":
     main()

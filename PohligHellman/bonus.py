@@ -7,6 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import EllipticCurve, Point, load_input, crt_combine
+from utils.bonus_utils import print_bonus_result
 from PohligHellman.main import trial_factor, bsgs_small
 
 USE_CPP = False
@@ -36,7 +37,7 @@ def solve_with_leak(curve, G, Q, n, leaks={}):
     
     for q, e in factors.items():
         mod = q**e
-        t0 = time.time()
+        t0 = time.perf_counter()
         
         if mod in leaks:
             d_i = leaks[mod]
@@ -46,7 +47,7 @@ def solve_with_leak(curve, G, Q, n, leaks={}):
             d_i = bsgs_small(curve, fast_mult(h, G, curve), fast_mult(h, Q, curve), mod)
             src = "Computed"
             
-        print(f"{mod:<15} | {src:<15} | {time.time()-t0:.4f}s")
+        print(f"{mod:<15} | {src:<15} | {time.perf_counter()-t0:.6f}s")
         if d_i is not None: congruences.append((d_i, mod))
         
     d, _ = crt_combine(congruences)
@@ -77,6 +78,8 @@ def main():
     d = solve_with_leak(curve, G, Q, n, leaks)
     print(f"{'='*60}")
     print(f"Result: {'✓ PASSED' if d==d_real else '✗ FAILED'}")
+
+    print_bonus_result("PohligHellman", "success" if d == d_real else "fail", 0, 0, {"leaked_modulus": mod})
 
 if __name__ == "__main__":
     main()

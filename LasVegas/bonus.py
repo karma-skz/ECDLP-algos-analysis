@@ -8,6 +8,7 @@ from pathlib import Path
 # --- BOILERPLATE: PATHS & C++ ---
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import EllipticCurve, Point, load_input
+from utils.bonus_utils import print_bonus_result
 
 USE_CPP = False
 ecc_lib = None
@@ -32,7 +33,7 @@ def fast_mult(k, G, curve):
     return (rx.value, ry.value) if valid else None
 
 def solve_gaussian(curve, G, Q, n, hint, sigma):
-    start = time.time()
+    start = time.perf_counter()
     # INCREASED LIMIT: 50k -> 500k to catch 3-sigma tail events
     limit = 500000 
     
@@ -42,9 +43,9 @@ def solve_gaussian(curve, G, Q, n, hint, sigma):
         cand = (hint + offset) % n
         
         if fast_mult(cand, G, curve) == Q:
-            return cand, i+1, time.time() - start
+            return cand, i+1, time.perf_counter() - start
             
-    return None, limit, time.time() - start
+    return None, limit, time.perf_counter() - start
 
 def main():
     if len(sys.argv) < 2: return
@@ -73,11 +74,13 @@ def main():
     d, tries, t = solve_gaussian(curve, G, Q, n, hint, sigma)
     
     if d == d_real:
-        print(f"Found: {d} in {tries} tries ({t:.4f}s)")
+        print(f"Found: {d} in {tries} tries ({t:.6f}s)")
         print(f"Result: ✓ PASSED")
     else:
-        print(f"Result: ✗ FAILED (Time: {t:.4f}s, Tries: {tries})")
+        print(f"Result: ✗ FAILED (Time: {t:.6f}s, Tries: {tries})")
         print("Note: Failed to find key in tail of distribution.")
+
+    print_bonus_result("LasVegas", "success" if d == d_real else "fail", t, tries, {"sigma": sigma})
 
 if __name__ == "__main__":
     main()
