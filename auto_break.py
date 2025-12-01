@@ -70,24 +70,14 @@ def analyze_and_attack(file_path):
         attack_script = "Smart/main.py"
         attack_name = "Smart's Attack"
 
-    # 2. Check for Supersingular Curve (MOV Attack)
-    # Common case: y^2 = x^3 + b over F_p where p = 2 mod 3 (j-invariant 0)
-    # Or simply check if trace is 0 (n = p + 1)
-    is_supersingular_form = (p % 3 == 2) and (a == 0)
-    if n == p + 1 or is_supersingular_form:
-        print("\033[91m[!] VULNERABILITY DETECTED: Supersingular Curve (Trace = 0)\033[0m")
-        print("    -> Attack: MOV Attack (Reduction to DLP in F_p^k)")
-        attack_script = "MOV/main_optimized.py"
-        attack_name = "MOV Attack"
-
-    # 3. Check for Smooth Order (Pohlig-Hellman)
+    # 2. Check for Smooth Order (Pohlig-Hellman)
     elif is_smooth(n, SMOOTH_BOUND):
         print("\033[91m[!] VULNERABILITY DETECTED: Smooth Order\033[0m")
         print(f"    -> Attack: Pohlig-Hellman (Decomposition)")
         attack_script = "PohligHellman/main_optimized.py"
         attack_name = "Pohlig-Hellman"
 
-    # 4. Fallback: Generic (Pollard's Rho)
+    # 3. Fallback: Generic (Pollard's Rho)
     else:
         print("\033[93m[-] No specific structural weakness found.\033[0m")
         print("    -> Attack: Pollard's Rho (Generic / O(sqrt(n)))")
