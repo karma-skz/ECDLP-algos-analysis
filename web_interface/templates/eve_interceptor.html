@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EVE - Network Security Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --panel: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --orange: #ffa657;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'SF Mono', 'Consolas', monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* HEADER */
+        .header {
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--red);
+            letter-spacing: 2px;
+        }
+        
+        .status {
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        /* LAYOUT */
+        .workspace {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* LEFT SIDEBAR */
+        .sidebar {
+            width: 320px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .control-section {
+            margin-bottom: 25px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+        }
+        
+        .section-title {
+            font-size: 11px;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #2ea043;
+            transform: translateY(-1px);
+        }
+        
+        button.attack {
+            background: #da3633;
+        }
+        
+        button.attack:hover {
+            background: #f85149;
+        }
+        
+        button.secondary {
+            background: var(--border);
+        }
+        
+        button.secondary:hover {
+            background: #484f58;
+        }
+        
+        select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        
+        /* MAIN VIEW */
+        .main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* PACKET TABLE */
+        .packet-header {
+            background: var(--panel);
+            border-bottom: 2px solid var(--border);
+            padding: 10px 20px;
+            display: grid;
+            grid-template-columns: 80px 120px 120px 100px 80px 1fr;
+            gap: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #8b949e;
+            text-transform: uppercase;
+        }
+        
+        .packet-list {
+            flex: 1;
+            overflow-y: auto;
+            background: var(--bg);
+        }
+        
+        .packet-row {
+            display: grid;
+            grid-template-columns: 80px 120px 120px 100px 80px 1fr;
+            gap: 10px;
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+        
+        .packet-row:hover {
+            background: var(--panel);
+        }
+        
+        .packet-row.selected {
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 3px solid var(--accent);
+        }
+        
+        .packet-data {
+            font-family: 'Courier New', monospace;
+            color: var(--orange);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .decrypted {
+            color: var(--green);
+            font-weight: bold;
+        }
+        
+        /* TERMINAL */
+        .terminal {
+            height: 280px;
+            background: #010409;
+            border-top: 2px solid var(--border);
+            padding: 15px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .terminal-line {
+            margin-bottom: 4px;
+        }
+        
+        .terminal-line.success {
+            color: var(--green);
+        }
+        
+        .terminal-line.error {
+            color: var(--red);
+        }
+        
+        .terminal-line.info {
+            color: var(--accent);
+        }
+        
+        /* STATS */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-box {
+            background: var(--bg);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent);
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            color: #8b949e;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            background: var(--border);
+            color: var(--text);
+        }
+        
+        .badge.handshake {
+            background: var(--accent);
+            color: white;
+            animation: glow 2s infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 5px var(--accent); }
+            50% { box-shadow: 0 0 15px var(--accent); }
+        }
+        
+        .badge.encrypted {
+            background: var(--red);
+            color: white;
+        }
+        
+        .badge.decrypted {
+            background: var(--green);
+            color: white;
+        }
+        
+        /* PACKET DETAILS */
+        .packet-details {
+            display: none;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 20px;
+            font-size: 12px;
+        }
+        
+        .packet-details.show {
+            display: block;
+        }
+        
+        .detail-row {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 10px;
+            margin-bottom: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .detail-label {
+            color: #8b949e;
+            font-weight: 600;
+        }
+        
+        .detail-value {
+            font-family: 'Courier New', monospace;
+            color: var(--text);
+            word-break: break-all;
+        }
+        
+        .hex-dump {
+            background: var(--bg);
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.8;
+            color: var(--orange);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="title">🕵️ EVE - CRYPTANALYSIS STATION</div>
+    <div class="status">
+        <div class="status-item">
+            <div class="status-dot"></div>
+            <span>Monitoring: 127.0.0.1</span>
+        </div>
+        <div class="status-item">
+            <span>Interface: lo0</span>
+        </div>
+        <div class="status-item">
+            <span id="packet-count">Packets: 0</span>
+        </div>
+    </div>
+</div>
+
+<div class="workspace">
+    <div class="sidebar">
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="captured-count">0</div>
+                <div class="stat-label">Captured</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="handshake-count">0</div>
+                <div class="stat-label">Handshakes</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="encrypted-count">0</div>
+                <div class="stat-label">Encrypted</div>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <div class="section-title">🎯 Packet Capture</div>
+            <button onclick="startCapture()">▶ Start Capture</button>
+            <button class="secondary" onclick="stopCapture()">⏸ Stop Capture</button>
+            <button class="secondary" onclick="clearPackets()">🗑 Clear Packets</button>
+        </div>
+        
+        <div class="control-section">
+            <div class="section-title">⚡ ECDLP Attack Toolkit</div>
+            
+            <label style="font-size: 11px; color: #8b949e; display: block; margin-bottom: 4px;">Algorithm:</label>
+            <select id="algo">
+                <option value="PollardRho">Pollard's Rho (Fast)</option>
+                <option value="BabyStep">Baby-Step Giant-Step</option>
+                <option value="BruteForce">Brute Force</option>
+                <option value="PohligHellman">Pohlig-Hellman</option>
+                <option value="LasVegas">Las Vegas</option>
+            </select>
+            
+            <div style="margin-top: 12px; padding: 10px; background: var(--bg); border-radius: 4px; font-size: 11px; line-height: 1.6; border: 1px solid var(--accent);">
+                <div style="color: #8b949e; margin-bottom: 4px;"><strong>Target Curve:</strong></div>
+                <div id="detected-curve" style="color: var(--accent); font-weight: bold;">Waiting for Alice handshake...</div>
+                <div style="font-size: 10px; color: #8b949e; margin-top: 4px;">Auto-detected from captured packets</div>
+            </div>
+            
+            <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+                <button class="attack" onclick="runAttack(0)">💥 Full Attack (No Leak)</button>
+                <button class="attack" onclick="runAttack(10)">⚡ Power Analysis (10-bit)</button>
+                <button class="attack" onclick="runAttack(16)">⏱ Timing Attack (16-bit)</button>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <div class="section-title">📊 Session Info</div>
+            <div style="font-size: 11px; line-height: 1.8;">
+                <div><strong>Alice:</strong> <span id="alice-pub">Waiting...</span></div>
+                <div><strong>Bob:</strong> <span id="bob-pub">Waiting...</span></div>
+                <div><strong>Selected:</strong> <span id="selected-packet" style="color: var(--accent);">None</span></div>
+                <div><strong>Status:</strong> <span id="attack-status">Ready</span></div>
+                <div id="private-key-display" style="display: none; margin-top: 10px; padding: 10px; background: var(--bg); border-radius: 4px;">
+                    <strong style="color: var(--green);">🔑 Private Key:</strong><br>
+                    <span id="private-key-value" style="font-family: monospace; color: var(--accent);"></span>
+                </div>
+            </div>
+            <div id="decrypt-controls" style="display: none; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+                <div style="font-size: 11px; color: #8b949e; margin-bottom: 8px;">🔓 Manual Decryption:</div>
+                <input type="number" id="private-key-input" placeholder="Enter d value..." style="width: 100%; padding: 8px; margin-bottom: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: monospace;">
+                <button class="attack" onclick="decryptWithPrivateKey()" style="background: var(--green);">🔐 Decrypt Selected Packet</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="main-view">
+        <div class="packet-header">
+            <div>Time</div>
+            <div>Source</div>
+            <div>Destination</div>
+            <div>Protocol</div>
+            <div>Length</div>
+            <div>Data</div>
+        </div>
+        
+        <div class="packet-list" id="packet-list">
+            <div style="padding: 40px; text-align: center; color: #8b949e;">
+                No packets captured yet. Click "Start Capture" to begin monitoring.
+            </div>
+        </div>
+        
+        <div class="packet-details" id="packet-details">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: var(--accent);">Packet Details</h3>
+                <button onclick="closePacketDetails()" style="width: auto; padding: 5px 15px; margin: 0;">✕ Close</button>
+            </div>
+            <div id="packet-details-content"></div>
+        </div>
+        
+        <div class="terminal" id="terminal">
+            <div class="terminal-line info">root@eve:~# Network Security Analyzer v2.0</div>
+            <div class="terminal-line">Waiting for instructions...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    let packetCount = 0;
+    let handshakeCount = 0;
+    let encryptedCount = 0;
+    let canDecrypt = false;
+    let selectedPacket = null;
+    let allPackets = [];
+    
+    function startCapture() {
+        socket.emit('start_capture');
+        log('Starting packet capture...', 'info');
+        document.getElementById('attack-status').innerText = 'Capturing...';
+    }
+    
+    function stopCapture() {
+        socket.emit('stop_capture');
+        
+        // Clear terminal
+        const term = document.getElementById('terminal');
+        term.innerHTML = '<div class="terminal-line info">root@eve:~# Capture stopped</div>';
+        
+        // Reset state
+        canDecrypt = false;
+        selectedPacket = null;
+        document.getElementById('attack-status').innerText = 'Ready';
+        document.getElementById('selected-packet').innerText = 'None';
+        
+        // Remove decrypt badges from all packets
+        document.querySelectorAll('.badge.decrypted').forEach(b => {
+            b.className = 'badge encrypted';
+            b.innerText = 'ENCRYPTED';
+        });
+        document.querySelectorAll('.decrypted').forEach(el => {
+            if (el.classList.contains('decrypted')) {
+                el.classList.remove('decrypted');
+                const parent = el.closest('.packet-row');
+                if (parent) {
+                    const hexData = allPackets[parent.dataset.index]?.hex || '';
+                    el.innerHTML = `<span class="packet-data">${hexData.substring(0, 50)}...</span>`;
+                }
+            }
+        });
+        
+        log('Ready for next attack', 'info');
+    }
+    
+    function clearPackets() {
+        document.getElementById('packet-list').innerHTML = '';
+        allPackets = [];
+        packetCount = 0;
+        handshakeCount = 0;
+        encryptedCount = 0;
+        selectedPacket = null;
+        canDecrypt = false;
+        document.getElementById('selected-packet').innerText = 'None';
+        updateStats();
+        log('Packet list cleared', 'info');
+    }
+    
+    function selectPacket(index) {
+        selectedPacket = allPackets[index];
+        
+        // Remove previous selection
+        document.querySelectorAll('.packet-row').forEach(r => r.classList.remove('selected'));
+        
+        // Highlight selected
+        const row = document.querySelector(`.packet-row[data-index="${index}"]`);
+        if (row) {
+            row.classList.add('selected');
+        }
+        
+        // Update UI
+        const src = selectedPacket.src_label || 'Unknown';
+        document.getElementById('selected-packet').innerText = `${src} packet #${index + 1}`;
+        log(`Selected packet #${index + 1} from ${src}`, 'info');
+        
+        // Show packet details
+        showPacketDetails(selectedPacket, index);
+    }
+    
+    function showPacketDetails(packet, index) {
+        const detailsPanel = document.getElementById('packet-details');
+        const content = document.getElementById('packet-details-content');
+        
+        let decodedInfo = packet.decoded || 'Binary encrypted data';
+        const decodedLower = (packet.decoded || '').toLowerCase();
+        let isHandshake = decodedLower.includes('pubkey') || decodedLower.includes('pub key') || decodedLower.match(/\(\d+,\s*\d+\)/);
+        
+        content.innerHTML = `
+            <div class="detail-row">
+                <div class="detail-label">Packet #:</div>
+                <div class="detail-value">${index + 1}</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Time:</div>
+                <div class="detail-value">${packet.time || 'N/A'}</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Source:</div>
+                <div class="detail-value">${packet.src} (${packet.src_label || 'Unknown'})</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Destination:</div>
+                <div class="detail-value">${packet.dst} (${packet.dst_label || 'Unknown'})</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Protocol:</div>
+                <div class="detail-value">${packet.proto || 'TCP'}</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Length:</div>
+                <div class="detail-value">${packet.len || 0} bytes</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Type:</div>
+                <div class="detail-value">${isHandshake ? '<span style="color: var(--green);">🔑 ECDH Handshake (Public Key)</span>' : '<span style="color: var(--red);">🔒 Encrypted Message</span>'}</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Decoded:</div>
+                <div class="detail-value">${decodedInfo}</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Hex Dump:</div>
+                <div class="detail-value">
+                    <div class="hex-dump">${formatHexDump(packet.hex || '')}</div>
+                </div>
+            </div>
+        `;
+        
+        detailsPanel.classList.add('show');
+    }
+    
+    function closePacketDetails() {
+        document.getElementById('packet-details').classList.remove('show');
+    }
+    
+    function decryptWithPrivateKey() {
+        if (!selectedPacket) {
+            log('ERROR: No packet selected. Click on an encrypted message packet first.', 'error');
+            return;
+        }
+        
+        const decodedLower = (selectedPacket.decoded || '').toLowerCase();
+        if (decodedLower.includes('pubkey') || decodedLower.includes('pub key')) {
+            log('ERROR: Cannot decrypt handshake packet. Select an encrypted message packet.', 'error');
+            return;
+        }
+        
+        const privateKey = document.getElementById('private-key-input').value;
+        if (!privateKey || privateKey.trim() === '') {
+            log('ERROR: Enter the cracked private key d in the input field.', 'error');
+            return;
+        }
+        
+        const packetIndex = allPackets.indexOf(selectedPacket);
+        socket.emit('decrypt_packet', {
+            packet_index: packetIndex,
+            private_key: privateKey
+        });
+        log(`Attempting to decrypt packet #${packetIndex + 1} with d = ${privateKey}...`, 'info');
+    }
+    
+    function decryptSelectedPacket() {
+        decryptWithPrivateKey();
+    }
+    
+    function decryptAllMessages() {
+        log('Feature disabled. Decrypt packets individually.', 'info');
+    }
+    
+    function formatHexDump(hex) {
+        if (!hex) return 'No data';
+        let result = '';
+        for (let i = 0; i < hex.length; i += 32) {
+            const chunk = hex.substr(i, 32);
+            const offset = (i / 2).toString(16).padStart(4, '0');
+            result += `${offset}: ${chunk.match(/.{1,2}/g).join(' ')}\n`;
+        }
+        return result;
+    }
+    
+    function runAttack(leak) {
+        const algo = document.getElementById('algo').value;
+        
+        // Determine which packet to attack
+        let targetPacket = selectedPacket;
+        if (!targetPacket) {
+            // Auto-select first handshake packet
+            targetPacket = allPackets.find(p => {
+                const decoded = (p.decoded || '').toLowerCase();
+                return decoded.includes('pubkey') || decoded.includes('pub key');
+            });
+            if (!targetPacket) {
+                log('ERROR: No handshake packets found. Wait for Alice and Bob to connect.', 'error');
+                return;
+            }
+            log('No packet selected, using first handshake packet', 'info');
+        } else {
+            // Validate that selected packet is a handshake
+            const decoded = (targetPacket.decoded || '').toLowerCase();
+            const isHandshake = decoded.includes('pubkey') || decoded.includes('pub key') || decoded.match(/\(\d+,\s*\d+\)/);
+            if (!isHandshake) {
+                log(`ERROR: Selected packet is not a handshake. Decoded: "${targetPacket.decoded}"`, 'error');
+                log('Please select a packet with HANDSHAKE badge or public key data.', 'error');
+                return;
+            }
+        }
+        
+        socket.emit('run_attack', {
+            algo: algo, 
+            leak: leak,
+            packet_index: allPackets.indexOf(targetPacket)
+        });
+        
+        document.getElementById('attack-status').innerText = 'Attacking...';
+        log(`Launching ${algo} attack (leak: ${leak} bits)...`, 'info');
+    }
+    
+    function addPacket(data) {
+        const list = document.getElementById('packet-list');
+        if (list.children.length === 1 && list.children[0].style.textAlign === 'center') {
+            list.innerHTML = '';
+        }
+        
+        // Store packet data
+        const index = allPackets.length;
+        allPackets.push(data);
+        
+        const row = document.createElement('div');
+        row.className = 'packet-row';
+        row.dataset.index = index;
+        row.onclick = () => selectPacket(index);
+        
+        let dataDisplay = data.decoded || `<span class="packet-data">${(data.hex || '').substring(0, 50)}...</span>`;
+        let badge = '<span class="badge encrypted">ENCRYPTED</span>';
+        
+        const decodedLower = (data.decoded || '').toLowerCase();
+        if (decodedLower.includes('pubkey') || decodedLower.includes('pub key')) {
+            badge = '<span class="badge handshake">🔑 HANDSHAKE</span>';
+            handshakeCount++;
+            
+            // Extract and display detected curve parameters
+            const bitCaseMatch = data.decoded.match(/\[(\d+)bit,case(\d+)\]/);
+            if (bitCaseMatch) {
+                const bits = bitCaseMatch[1];
+                const caseNum = bitCaseMatch[2];
+                document.getElementById('detected-curve').innerHTML = `<strong>${bits}-bit</strong>, Case ${caseNum}`;
+                log(`🔍 Detected: ${bits}-bit curve, case ${caseNum}`, 'success');
+            }
+            
+            // Update sidebar info
+            if (data.src_label === 'ALICE') {
+                document.getElementById('alice-pub').innerText = data.decoded.substring(0, 30) + '...';
+            } else if (data.src_label === 'BOB') {
+                document.getElementById('bob-pub').innerText = data.decoded.substring(0, 30) + '...';
+            }
+            
+            // Auto-select first handshake if none selected
+            if (!selectedPacket) {
+                setTimeout(() => selectPacket(index), 100);
+                log('💡 First handshake packet auto-selected. Click attack button to crack it!', 'info');
+            }
+        } else if (decodedLower.includes('test packet')) {
+            badge = '<span class="badge" style="background: #ffa657;">TEST</span>';
+        } else {
+            encryptedCount++;
+        }
+        
+        if (canDecrypt && !data.decoded?.includes('PubKey') && !data.decoded?.includes('TEST')) {
+            badge = '<span class="badge decrypted">DECRYPTED</span>';
+            dataDisplay = '<span class="decrypted">🔓 Plaintext Recovered</span>';
+        }
+        
+        row.innerHTML = `
+            <div>${data.time || 'N/A'}</div>
+            <div>${data.src || 'N/A'}</div>
+            <div>${data.dst || 'N/A'}</div>
+            <div>${data.proto || 'TCP'} ${badge}</div>
+            <div>${data.len || 0}B</div>
+            <div>${dataDisplay}</div>
+        `;
+        
+        list.appendChild(row);
+        list.scrollTop = list.scrollHeight;
+        
+        packetCount++;
+        updateStats();
+    }
+    
+    function updateStats() {
+        document.getElementById('captured-count').innerText = packetCount;
+        document.getElementById('handshake-count').innerText = handshakeCount;
+        document.getElementById('encrypted-count').innerText = encryptedCount;
+        document.getElementById('packet-count').innerText = `Packets: ${packetCount}`;
+    }
+    
+    function log(msg, type = '') {
+        const term = document.getElementById('terminal');
+        const line = document.createElement('div');
+        line.className = `terminal-line ${type}`;
+        line.innerText = msg;
+        term.appendChild(line);
+        term.scrollTop = term.scrollHeight;
+    }
+    
+    // Socket listeners
+    socket.on('packet_captured', (data) => {
+        addPacket(data);
+    });
+    
+    socket.on('log', (data) => {
+        let type = '';
+        if (data.text.includes('SUCCESS') || data.text.includes('✓')) type = 'success';
+        if (data.text.includes('ERROR') || data.text.includes('FAILED')) type = 'error';
+        if (data.text.includes('[EVE]') || data.text.includes('[ATTACK]')) type = 'info';
+        
+        log(data.text, type);
+    });
+    
+    socket.on('crack_success', (data) => {
+        canDecrypt = true;
+        document.getElementById('attack-status').innerText = 'Key Cracked!';
+        log('🎉 Private key recovered! Enter it below to decrypt messages.', 'success');
+        
+        // Show private key and auto-fill input
+        document.getElementById('private-key-value').innerText = 'd = ' + data.alice_key;
+        document.getElementById('private-key-display').style.display = 'block';
+        document.getElementById('decrypt-controls').style.display = 'block';
+        document.getElementById('private-key-input').value = data.alice_key;
+        
+        // Update encrypted packets to show they're ready
+        document.querySelectorAll('.packet-row').forEach((row, idx) => {
+            const packet = allPackets[idx];
+            if (packet && !packet.decoded?.toLowerCase().includes('pubkey') && !packet.decoded?.toLowerCase().includes('test')) {
+                const badge = row.querySelector('.badge.encrypted');
+                if (badge) {
+                    badge.className = 'badge';
+                    badge.style.background = 'var(--orange)';
+                    badge.innerText = '🔐 READY';
+                }
+            }
+        });
+        
+        log('💡 Select an encrypted packet and click "Decrypt Selected Packet"', 'info');
+    });
+    
+    socket.on('decrypted_message', (data) => {
+        const sender = data.sender || 'UNKNOWN';
+        log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'info');
+        log(`[PACKET #${data.packet_index + 1}] Decryption Results:`, 'info');
+        log(`  👤 Sender: ${sender}`, 'info');
+        log(`  📦 Encrypted: ${data.encrypted_hex.substring(0, 64)}...`, 'info');
+        log(`  🔓 Plaintext: "${data.plaintext}"`, 'success');
+        log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'info');
+        
+        // Update the specific packet display
+        const row = document.querySelector(`.packet-row[data-index="${data.packet_index}"]`);
+        if (row) {
+            const badge = row.querySelector('.badge');
+            if (badge) {
+                badge.className = 'badge decrypted';
+                badge.innerText = 'DECRYPTED';
+            }
+            const dataCell = row.querySelector('div:last-child');
+            if (dataCell) {
+                dataCell.innerHTML = `<span class="decrypted">🔓 "${data.plaintext}"</span>`;
+            }
+        }
+        
+        // Update stored packet data
+        if (allPackets[data.packet_index]) {
+            allPackets[data.packet_index].decrypted = data.plaintext;
+        }
+    });
+    
+    socket.on('attack_reset', () => {
+        canDecrypt = false;
+        document.getElementById('attack-status').innerText = 'Ready';
+        document.getElementById('private-key-display').style.display = 'none';
+        document.getElementById('decrypt-controls').style.display = 'none';
+    });
+</script>
+
+</body>
+</html>

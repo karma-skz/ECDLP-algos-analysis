@@ -147,22 +147,67 @@ def gen_ph(bits, count, base_dir):
         save_case(out_dir, bits, i, p, a, b, G, n, Q, d)
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--start', type=int, default=20)
-    parser.add_argument('--end', type=int, default=40)
-    parser.add_argument('--step', type=int, default=5)
+    parser = argparse.ArgumentParser(
+        description='Generate ECC test cases for different curve types',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 gen.py                                    # Generate 20-40 bit curves
+  python3 gen.py --start 30 --end 50 --step 5      # Custom range
+  python3 gen.py --count 3                         # Generate 3 cases per type/bit
+  python3 gen.py --verbose                         # Show detailed progress
+        """
+    )
+    parser.add_argument('--start', type=int, default=20, help='Starting bit size (default: 20)')
+    parser.add_argument('--end', type=int, default=40, help='Ending bit size (default: 40)')
+    parser.add_argument('--step', type=int, default=5, help='Step size between bits (default: 5)')
+    parser.add_argument('--count', type=int, default=5, help='Number of cases per type/bit (default: 5)')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed progress')
     args = parser.parse_args()
 
     base_dir = Path(__file__).parent / "test_cases"
     
-    print(f"Generating curves from {args.start} to {args.end} bits...")
+    print("=" * 70)
+    print("ECC Test Case Generator")
+    print("=" * 70)
+    print(f"Range: {args.start}-{args.end} bits (step: {args.step})")
+    print(f"Count: {args.count} case(s) per type/bit size")
+    print(f"Output: {base_dir}")
+    print("-" * 70)
     
-    for bits in range(args.start, args.end + 1, args.step):
-        print(f"  Processing {bits} bits...")
-        gen_mov(bits, 1, base_dir)
-        gen_anomalous(bits, 1, base_dir)
-        gen_generic(bits, 1, base_dir)
-        gen_ph(bits, 1, base_dir)
+    total_bits = len(range(args.start, args.end + 1, args.step))
+    for idx, bits in enumerate(range(args.start, args.end + 1, args.step), 1):
+        print(f"[{idx}/{total_bits}] Processing {bits}-bit curves...")
+        
+        if args.verbose:
+            print(f"  → Supersingular (MOV-friendly)...", end=' ')
+        gen_mov(bits, args.count, base_dir)
+        if args.verbose:
+            print("✓")
+        
+        if args.verbose:
+            print(f"  → Anomalous (Smart's attack)...", end=' ')
+        gen_anomalous(bits, args.count, base_dir)
+        if args.verbose:
+            print("✓")
+        
+        if args.verbose:
+            print(f"  → Generic (Pollard Rho)...", end=' ')
+        gen_generic(bits, args.count, base_dir)
+        if args.verbose:
+            print("✓")
+        
+        if args.verbose:
+            print(f"  → Smooth order (Pohlig-Hellman)...", end=' ')
+        gen_ph(bits, args.count, base_dir)
+        if args.verbose:
+            print("✓")
+    
+    print("-" * 70)
+    print(f"✓ Generation complete!")
+    print(f"  Location: {base_dir}")
+    print(f"  Total: {total_bits * 4 * args.count} test cases")
+    print("=" * 70)
 
 if __name__ == "__main__":
     main()
