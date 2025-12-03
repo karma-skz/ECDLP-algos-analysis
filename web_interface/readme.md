@@ -1,27 +1,31 @@
-## How to setup :
+## App Demo
 
-```bash
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-# alternate : pip install eventlet flask flask-socketio scapy requests cryptography
-
-# Start the server
-python eve_server.py
+### Modules to install : 
+- eventlet
+- flask 
+- flask-socketio 
+- scapy 
+- requests 
+- cryptography
 
 
-# Webpage
-Visit http://127.0.0.1:5500
-Click "Start Capture"
+### How to use
 
-# Open another terminal and start Alice and Bob clients
-python3 web_interface/alice_server.py <testcase_path>
-python3 web_interface/bob_server.py <testcase_path>
+```sh
 
-#Select the handshake packet and Click on "FullAttack" to crack the ECDH key
+# for first time (not required every time)
+make venv
 
-# Chat, then select the new packet and Decrypt messages!
+# in root folder
+make   # to start server
 
+# Go to 127.0.0.1:5500 and start capture
+
+# Open two terminals and run :
+make alice
+make bob
+
+# Select the handshake packets and try attacking
+
+# Use the key deciphered to decrypt the message
 ```
