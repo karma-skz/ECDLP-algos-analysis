@@ -6,7 +6,7 @@
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-
+# alternate : pip install eventlet flask flask-socketio scapy requests cryptography
 
 # Start the server
 python eve_server.py

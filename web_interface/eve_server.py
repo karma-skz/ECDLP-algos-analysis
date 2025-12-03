@@ -143,6 +143,9 @@ def handle_stop():
 def handle_attack(data):
     algo = data.get('algo', 'PollardRho')
     leak = int(data.get('leak', 0))
+    mode = data.get('mode', 'basic')
+    interval_width = data.get('interval_width', None)
+    gaussian = data.get('gaussian', False)
     packet_index = data.get('packet_index', None)
     
     # Use Alice's actual curve parameters from handshake
@@ -197,12 +200,25 @@ def handle_attack(data):
         # 3. Prepare Command
         scripts = {
             'BruteForce': 'BruteForce/main_optimized.py',
+            'BruteForce_Bonus': 'BruteForce/bonus.py',
             'BabyStep': 'BabyStep/main_optimized.py',
             'PollardRho': 'PollardRho/main_optimized.py',
             'PohligHellman': 'PohligHellman/main_optimized.py',
             'LasVegas': 'LasVegas/main_optimized.py',
+            'LasVegas_Gaussian': 'LasVegas/bonus.py',
         }
-        script_rel = scripts.get(algo, 'PollardRho/main_optimized.py')
+        
+        # Choose script based on mode
+        if gaussian and algo == 'LasVegas':
+            script_key = 'LasVegas_Gaussian'
+            emit('log', {'text': "[MODE] Using Las Vegas Gaussian Estimation"})
+        elif (leak > 0 or interval_width) and algo == 'BruteForce':
+            script_key = 'BruteForce_Bonus'
+            emit('log', {'text': f"[MODE] Using BruteForce with {'LSB leak' if leak > 0 else 'bounded interval'}"})
+        else:
+            script_key = algo
+        
+        script_rel = scripts.get(script_key, 'PollardRho/main_optimized.py')
         script_path = Path(PROJECT_ROOT) / script_rel
         
         if not script_path.exists():
@@ -213,7 +229,17 @@ def handle_attack(data):
         python_exe = str(venv_python) if venv_python.exists() else sys.executable
         
         cmd = [python_exe, "-u", str(script_path), str(temp_case)]
-        if leak > 0: cmd.extend(["--leak-bits", str(leak)])
+        
+        # Add mode-specific arguments
+        if leak > 0 and script_key == 'BruteForce_Bonus':
+            cmd.extend(["--leak-bits", str(leak)])
+            emit('log', {'text': f"[ATTACK] Using {leak}-bit LSB leak"})
+        elif interval_width and script_key == 'BruteForce_Bonus':
+            cmd.extend(["--interval-width", str(interval_width)])
+            emit('log', {'text': f"[ATTACK] Searching bounded interval: ±{interval_width//2}"})
+        elif leak > 0 and script_key != 'BruteForce_Bonus':
+            # Standard algorithms with leak support
+            cmd.extend(["--leak-bits", str(leak)])
 
         emit('log', {'text': f"[EXEC] Running {algo} on {curve_bits}-bit curve..."})
 

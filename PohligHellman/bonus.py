@@ -75,11 +75,13 @@ def main():
     leaks = {mod: d_real % mod}
     
     print(f"Simulating leak of d mod {mod}")
+    t0 = time.perf_counter()
     d = solve_with_leak(curve, G, Q, n, leaks)
+    elapsed = time.perf_counter() - t0
     print(f"{'='*60}")
     print(f"Result: {'[SUCCESS]' if d==d_real else '[FAILED]'}")
 
-    print_bonus_result("PohligHellman", "success" if d == d_real else "fail", 0, 0, {"leaked_modulus": mod})
+    print_bonus_result("PohligHellman", "success" if d == d_real else "fail", elapsed, 0, {"leaked_modulus": mod})
 
 if __name__ == "__main__":
     main()

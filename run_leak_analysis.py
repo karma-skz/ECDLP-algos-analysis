@@ -66,7 +66,8 @@ def run_suite(target_bits, case_num, target_leaks):
         "BabyStep": {},
         "PollardRho": {},
         "Kangaroo": {},
-        "LasVegas": {}
+        "LasVegas": {},
+        "PohligHellman": {}
     }
 
     print(f"\n{'='*60}")
@@ -118,10 +119,14 @@ def run_suite(target_bits, case_num, target_leaks):
         
         widths = []
         curr = n
-        while curr > 100:
+        while curr > 10:  # Lower threshold for small curves
             widths.append(curr)
-            curr //= 16 # Faster reduction for speed
-            if len(widths) > 5: break
+            curr //= 4  # Smaller reduction factor for more data points
+            if len(widths) >= 6: break
+        
+        # Ensure we have at least one width for small curves
+        if not widths and n > 10:
+            widths = [n, n//2, n//4, max(10, n//8)]
             
         for w in widths:
             print(f"  [Kangaroo] Width {w}...", end="", flush=True)
@@ -129,7 +134,7 @@ def run_suite(target_bits, case_num, target_leaks):
             if res:
                 print(f" {res['time']:.4f}s")
                 if res['status'] == 'success':
-                    factor = n / w
+                    factor = n / max(1, w)
                     suite_data["Kangaroo"][bits].append({"x": factor, "y": res['time']})
             else: print(" Error")
 
@@ -146,6 +151,36 @@ def run_suite(target_bits, case_num, target_leaks):
                     suite_data["LasVegas"][bits].append({"x": err, "y": res['time']})
             else: print(" Error")
 
+        # --- 4. Residue Leakage (Pohlig-Hellman) ---
+        # Run on multiple test cases to get different modulus sizes
+        if bits not in suite_data["PohligHellman"]: suite_data["PohligHellman"][bits] = []
+        
+        for test_case_num in range(1, 6):  # Try cases 1-5
+            alt_case = get_test_case(bits, test_case_num)
+            if not alt_case or not alt_case.exists():
+                continue
+                
+            print(f"  [PohligHellman] Case {test_case_num}...", end="", flush=True)
+            res = run_algo_scenario("PohligHellman", alt_case, [])
+            if res:
+                if res['status'] == 'success' and 'leaked_modulus' in res.get('details', {}):
+                    leaked_mod = res['details']['leaked_modulus']
+                    time_ms = res['time'] * 1000  # Convert to milliseconds
+                    
+                    # Load n to calculate percentage leaked
+                    try:
+                        _, _, _, _, test_n, _ = load_input(alt_case)
+                        # X-axis: Percentage of key space eliminated by leak
+                        pct_leaked = (leaked_mod / test_n) * 100
+                        print(f" {time_ms:.4f}ms (leaked {pct_leaked:.1f}% of key)")
+                        suite_data["PohligHellman"][bits].append({"x": pct_leaked, "y": time_ms})
+                    except:
+                        print(f" {time_ms:.4f}ms (error reading n)")
+                else:
+                    print(f" {res.get('status', 'unknown')}")
+            else:
+                print(" Error")
+
     return suite_data
 
 def generate_html(data, target_bits):
@@ -161,8 +196,19 @@ def generate_html(data, target_bits):
                 continue
                 
             points = data[algo_name][bits]
-            # Sort by X
-            points.sort(key=lambda p: p['x'])
+            
+            # Special handling for PohligHellman: aggregate multiple points at same X
+            if algo_name == "PohligHellman":
+                # Group by X coordinate and average Y values
+                from collections import defaultdict
+                x_groups = defaultdict(list)
+                for p in points:
+                    x_groups[p['x']].append(p['y'])
+                # Average the Y values for each X
+                points = [{"x": x, "y": sum(ys)/len(ys)} for x, ys in sorted(x_groups.items())]
+            else:
+                # Sort by X
+                points.sort(key=lambda p: p['x'])
             
             datasets.append({
                 "label": f"{bits}-bit Curve",
@@ -179,6 +225,7 @@ def generate_html(data, target_bits):
     rho_data_json = json.dumps(make_datasets("PollardRho"))
     kang_data_json = json.dumps(make_datasets("Kangaroo"))
     lv_data_json = json.dumps(make_datasets("LasVegas"))
+    ph_data_json = json.dumps(make_datasets("PohligHellman"))
 
     html = f"""
 <!DOCTYPE html>
@@ -235,10 +282,17 @@ def generate_html(data, target_bits):
             </div>
 
             <!-- 5. Las Vegas -->
-            <div class="chart-card full-width">
+            <div class="chart-card">
                 <h2>5. Las Vegas: Approximate Key Knowledge</h2>
                 <canvas id="lvChart"></canvas>
                 <p><small>X: Error Margin (+/-) | Y: Time (s)</small></p>
+            </div>
+
+            <!-- 6. Pohlig-Hellman -->
+            <div class="chart-card">
+                <h2>6. Pohlig-Hellman: Residue Leakage</h2>
+                <canvas id="phChart"></canvas>
+                <p><small>X: % of Key Space Leaked | Y: Time (ms) - Shows impact of leaking largest factor</small></p>
             </div>
         </div>
     </div>
@@ -332,6 +386,25 @@ def generate_html(data, target_bits):
                         title: {{ display: true, text: 'Error Margin' }} 
                     }} 
                 }} 
+            }}
+        }});
+
+        // 6. Pohlig-Hellman
+        new Chart(document.getElementById('phChart'), {{
+            type: 'line',
+            data: {{ datasets: {ph_data_json} }},
+            options: {{ 
+                scales: {{
+                    y: {{ 
+                        type: 'linear',
+                        title: {{ display: true, text: 'Time (ms)' }} 
+                    }},
+                    x: {{ 
+                        type: 'linear', 
+                        title: {{ display: true, text: '% of Key Space Leaked' }} 
+                    }}
+                }},
+                plugins: {{ legend: {{ position: 'right' }} }}
             }}
         }});
     </script>

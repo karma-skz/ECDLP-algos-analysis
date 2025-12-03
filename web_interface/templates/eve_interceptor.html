@@ -404,9 +404,21 @@
             </div>
             
             <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
-                <button class="attack" onclick="runAttack(0)">💥 Full Attack (No Leak)</button>
-                <button class="attack" onclick="runAttack(10)">⚡ Power Analysis (10-bit)</button>
-                <button class="attack" onclick="runAttack(16)">⏱ Timing Attack (16-bit)</button>
+                <div style="font-size: 11px; color: #8b949e; margin-bottom: 8px;"><strong>Basic Attacks:</strong></div>
+                <button class="attack" onclick="runAttack('basic', 0)">💥 Full Attack (No Leak)</button>
+                
+                <div style="font-size: 11px; color: #8b949e; margin: 12px 0 8px 0;"><strong>Side-Channel Attacks:</strong></div>
+                <select id="leak-bits" style="width: 100%; padding: 6px; margin-bottom: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">
+                    <option value="8">8 bits leaked (Power Analysis)</option>
+                    <option value="10" selected>10 bits leaked (Timing Attack)</option>
+                    <option value="12">12 bits leaked (Cache Timing)</option>
+                    <option value="16">16 bits leaked (EM Attack)</option>
+                </select>
+                <button class="attack" onclick="runAttack('leak', parseInt(document.getElementById('leak-bits').value))">⚡ Side-Channel Attack</button>
+                
+                <div style="font-size: 11px; color: #8b949e; margin: 12px 0 8px 0;"><strong>Advanced Scenarios:</strong></div>
+                <button class="attack" onclick="runAttack('interval', 10000)" style="background: #6366f1;">🎯 Bounded Interval (±5000)</button>
+                <button class="attack" onclick="runAttack('gaussian', 0)" style="background: #8b5cf6;">🎲 Gaussian Estimation</button>
             </div>
         </div>
         
@@ -643,7 +655,7 @@
         return result;
     }
     
-    function runAttack(leak) {
+    function runAttack(mode, param) {
         const algo = document.getElementById('algo').value;
         
         // Determine which packet to attack
@@ -670,14 +682,33 @@
             }
         }
         
-        socket.emit('run_attack', {
+        const attackData = {
             algo: algo, 
-            leak: leak,
+            mode: mode,
+            param: param,
             packet_index: allPackets.indexOf(targetPacket)
-        });
+        };
+        
+        // Legacy support
+        if (mode === 'basic') {
+            attackData.leak = param;
+        } else if (mode === 'leak') {
+            attackData.leak = param;
+        } else if (mode === 'interval') {
+            attackData.interval_width = param;
+        } else if (mode === 'gaussian') {
+            attackData.gaussian = true;
+        }
+        
+        socket.emit('run_attack', attackData);
+        
+        let modeStr = mode === 'basic' ? 'standard' : 
+                      mode === 'leak' ? `${param}-bit leak` :
+                      mode === 'interval' ? `bounded interval (±${param/2})` :
+                      mode === 'gaussian' ? 'Gaussian estimation' : mode;
         
         document.getElementById('attack-status').innerText = 'Attacking...';
-        log(`Launching ${algo} attack (leak: ${leak} bits)...`, 'info');
+        log(`Launching ${algo} attack (${modeStr})...`, 'info');
     }
     
     function addPacket(data) {
