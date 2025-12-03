@@ -2,13 +2,12 @@
 Pohlig-Hellman with Residue Leakage - BONUS
 Adaptation: Skips computation for leaked sub-moduli.
 """
-import sys, time, ctypes
+import sys, time, ctypes, math
 from collections import defaultdict
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import EllipticCurve, Point, load_input, crt_combine
 from utils.bonus_utils import print_bonus_result
-from PohligHellman.main import trial_factor, bsgs_small
 
 USE_CPP = False
 ecc_lib = None
@@ -27,6 +26,46 @@ def fast_mult(k, G, curve):
     # FIX: No % p
     valid = ecc_lib.scalar_mult(k, G[0], G[1], curve.a, curve.b, curve.p, ctypes.byref(rx), ctypes.byref(ry))
     return (rx.value, ry.value) if valid else None
+
+def trial_factor(n):
+    """Simple factorization using trial division."""
+    factors = defaultdict(int)
+    d = 2
+    while d * d <= n:
+        while n % d == 0:
+            factors[d] += 1
+            n //= d
+        d += 1
+    if n > 1: factors[n] += 1
+    return dict(factors)
+
+def bsgs_small(curve, G, Q, order):
+    """Baby-step giant-step for small order subgroups using C++ optimization."""
+    if Q is None:
+        return 0
+    
+    m = int(math.isqrt(order)) + 1
+    
+    # Baby steps: Store j*G for j = 0, 1, ..., m-1
+    baby_table = {}
+    R = None
+    
+    for j in range(m):
+        if R not in baby_table:
+            baby_table[R] = j
+        R = curve.add(R, G)
+    
+    # Giant steps
+    mG = fast_mult(m, G, curve)
+    neg_mG = curve.negate(mG) if mG else None
+    
+    gamma = Q
+    for i in range(m):
+        if gamma in baby_table:
+            return i * m + baby_table[gamma]
+        gamma = curve.add(gamma, neg_mG)
+    
+    return None
 
 def solve_with_leak(curve, G, Q, n, leaks={}):
     factors = trial_factor(n)

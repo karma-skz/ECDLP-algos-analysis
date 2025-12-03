@@ -302,7 +302,7 @@ def main():
         print(f"\n{bits}-bit:")
         for algo in ALGORITHMS:
             # SMART LIMITS
-            if algo == 'BruteForce' and bits > 20:
+            if algo == 'BruteForce' and bits > 26:
                 print(f"  {algo:15s}: SKIPPED (exponential time)")
                 continue
             if algo == 'BabyStep' and bits > 50:

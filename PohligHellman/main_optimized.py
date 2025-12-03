@@ -8,7 +8,7 @@ from utils import EllipticCurve, Point, load_input, mod_inv
 # Load C++ library
 USE_CPP = False
 try:
-    lib_path = Path(__file__).parent / 'ecc_fast.so'
+    lib_path = Path(__file__).parent.parent / 'utils' / 'cpp' / 'ecc_fast.so'
     if lib_path.exists():
         ecc_lib = ctypes.CDLL(str(lib_path))
         ecc_lib.scalar_mult.argtypes = [ctypes.c_int64]*6 + [ctypes.POINTER(ctypes.c_int64)]*2

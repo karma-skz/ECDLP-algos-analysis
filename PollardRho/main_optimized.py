@@ -28,7 +28,7 @@ USE_CPP = False
 ecc_lib = None
 
 try:
-    lib_path = Path(__file__).parent / 'ecc_fast.so'
+    lib_path = Path(__file__).parent.parent / 'utils' / 'cpp' / 'ecc_fast.so'
     if lib_path.exists():
         ecc_lib = ctypes.CDLL(str(lib_path))
         
